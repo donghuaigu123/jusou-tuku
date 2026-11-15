@@ -173,7 +173,7 @@ public final class LocalServer {
             if (path.equals("/api/app")) {
                 Map<String, Object> m = ok();
                 m.put("name", "聚搜图库");
-                m.put("version", "2.0.0");
+                m.put("version", "3.0.0");
                 m.put("port", port);
                 m.put("maxResults", SearchEngine.MAX_RESULTS);
                 json(out, 200, m); return;
@@ -226,6 +226,22 @@ public final class LocalServer {
                 Map<String, Object> r = ok();
                 r.put("image", image);
                 json(out, 200, r);
+                return;
+            }
+            if (path.equals("/api/lineart") && "POST".equals(method)) {
+                Map<String, Object> m = Json.obj(Json.parse(new String(body, "UTF-8")));
+                try {
+                    Map<String, Object> r = ok();
+                    r.putAll(LineArtBridge.process(Json.str(m.get("image")),
+                            Json.integer(m.get("mode"), 0), Json.integer(m.get("sensitivity"), 50),
+                            Json.integer(m.get("density"), 50), Json.integer(m.get("lineWidth"), 1),
+                            m.get("pureBW") == null || Boolean.TRUE.equals(m.get("pureBW")),
+                            Boolean.TRUE.equals(m.get("mirror")), Boolean.TRUE.equals(m.get("invert")),
+                            m.get("enhance") == null || Boolean.TRUE.equals(m.get("enhance"))));
+                    json(out, 200, r);
+                } catch (Exception e) {
+                    json(out, 200, err(e.getMessage() == null ? "线稿生成失败" : e.getMessage()));
+                }
                 return;
             }
             if (path.equals("/api/clear-cache") && "POST".equals(method)) {

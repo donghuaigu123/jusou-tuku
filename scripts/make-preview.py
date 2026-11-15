@@ -37,6 +37,7 @@ banner_css = """
 body{padding-top:26px}
 .page{padding-top:calc(42px + var(--safe-t))}
 #pageMiaobian{padding-top:calc(42px + var(--safe-t))}
+#pageLineart{padding-top:calc(42px + var(--safe-t))}
 .viewer{top:26px}
 </style>
 """
@@ -48,7 +49,7 @@ mb_payload = json.dumps(miaobian, ensure_ascii=True)
 mb_payload = re.sub(r"</script", r"<\\/script", mb_payload, flags=re.IGNORECASE)
 
 demo = (
-    '<div class="demo-banner">浏览器演示 v2.0 · 模拟数据 · 真机最多 300 张 / 13 图源 / 双线稿工具</div>\n'
+    '<div class="demo-banner">浏览器演示 v3.0 · 模拟数据 · 300 张 / 13 图源 / 三线稿工具</div>\n'
     "<script>window.JUSOU_DEMO = true;\n"
     "window.JUSOU_MIAOBIAN_HTML = " + mb_payload + ";\n"
     "</script>\n"

@@ -286,3 +286,27 @@ input[type=range]::-webkit-slider-thumb{appearance:none;width:18px;height:18px;b
 /* 查看器 4 个动作按钮改为两行排布 */
 .viewer-actions{flex-wrap:wrap}
 .viewer-actions button{flex:1 1 44%;min-width:0}
+
+
+/* ============================================================
+ * v3.0 · 三线稿工具：6 导航 / 3 切换器 / 5 查看器按钮 / 色卡
+ * （追加在文件末尾，覆盖 v2 的同名规则）
+ * ============================================================ */
+.tabbar button{font-size:9.5px;padding:9px 1px 8px}
+.tabbar button i{font-size:17px;line-height:1.1}
+.tabbar button span{white-space:nowrap;letter-spacing:-.4px}
+
+.tool-switch{gap:4px;padding:3px}
+.tool-switch button{font-size:11px;padding:9px 2px;letter-spacing:-.3px}
+
+.viewer-actions button{flex:1 1 30%;min-width:0;font-size:11.5px;padding:11px 4px}
+
+.algo-note{display:block;color:var(--dim);font-size:11px;line-height:1.5;margin-top:9px}
+.swatch-title{font-size:11.5px;color:var(--muted);margin:12px 0 7px}
+.swatch-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:7px}
+.swatch{height:52px;border-radius:9px;border:1px solid rgba(255,255,255,.14);
+  display:flex;align-items:flex-end;justify-content:center;padding:4px 2px;overflow:hidden}
+.swatch span{font-size:9px;font-weight:700;color:#fff;background:rgba(0,0,0,.55);
+  border-radius:4px;padding:1px 4px;letter-spacing:-.2px;white-space:nowrap}
+.swatch-empty{grid-column:1/-1;font-size:11px;color:var(--dim);padding:6px 0}
+#pageLineart .stencil-stage{max-height:44vh}

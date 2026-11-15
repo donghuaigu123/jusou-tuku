@@ -13,7 +13,7 @@
   <header class="topbar">
     <div class="brand">
       <div class="logo"><span></span></div>
-      <div class="brand-text"><h1>聚搜图库</h1><p>多源聚合 · 智能排序 · 双线稿工具</p></div>
+      <div class="brand-text"><h1>聚搜图库</h1><p>多源聚合 · 智能排序 · 三线稿工具</p></div>
     </div>
     <button id="btnTopSettings" class="icon-btn" aria-label="设置">⚙</button>
   </header>
@@ -61,6 +61,7 @@
   <button data-tab="search" class="active"><i>⌕</i><span>搜图</span></button>
   <button data-tab="stencil"><i>✒</i><span>纹身线稿</span></button>
   <button data-tab="miaobian"><i>✎</i><span>秒变线稿</span></button>
+  <button data-tab="lineart"><i>◈</i><span>图转线稿</span></button>
   <button data-tab="downloads"><i>↓</i><span>下载</span></button>
   <button data-tab="settings"><i>⚙</i><span>设置</span></button>
 </nav>
@@ -70,10 +71,11 @@
   <div class="page-head"><h2>纹身线稿工作台</h2><p>复刻「纹身线稿大师」· 图片一键转「纯白底 + 纯黑线」转印底稿 · 本机离线处理</p></div>
 
   <div class="tool-switch">
-    <button data-tool="stencil" class="active">✒ 纹身线稿大师</button>
+    <button data-tool="stencil" class="active">✒ 纹身线稿</button>
     <button data-tool="miaobian">✎ 秒变线稿</button>
+    <button data-tool="lineart">◈ 图转线稿</button>
   </div>
-  <p class="tool-note">两套线稿工具均已完整复刻，想用哪个点哪个；搜索结果也可一键送进任意一个。</p>
+  <p class="tool-note">三套线稿工具均已完整复刻，想用哪个点哪个；搜索结果也可一键送进任意一个。</p>
 
   <div class="stencil-stage" id="stStage">
     <div class="stage-inner" id="stStageInner">
@@ -143,8 +145,9 @@
   <div class="mb-head">
     <div class="page-head"><h2>秒变线稿工作台</h2><p>复刻「秒变线稿」· 4 种描线算法 · 6 组预设 · 批量 ZIP · DPI 输出</p></div>
     <div class="tool-switch">
-      <button data-tool="stencil">✒ 纹身线稿大师</button>
+      <button data-tool="stencil">✒ 纹身线稿</button>
       <button data-tool="miaobian" class="active">✎ 秒变线稿</button>
+      <button data-tool="lineart">◈ 图转线稿</button>
     </div>
     <div class="mb-quick">
       <button id="btnMbPick" class="btn-ghost small">从相册选图</button>
@@ -153,6 +156,104 @@
     </div>
   </div>
   <iframe id="mbFrame" title="秒变线稿" data-src="/miaobian.html"></iframe>
+</section>
+
+<!-- ============ 线稿工作台 C（复刻「图转线稿」） ============ -->
+<section id="pageLineart" class="page hidden">
+  <div class="page-head"><h2>图转线稿工作台</h2><p>复刻「图转线稿」· 智能线稿 / 经典勾线双算法 · 纯白底纯黑线 · 镜像转印 · 色卡提取</p></div>
+
+  <div class="tool-switch">
+    <button data-tool="stencil">✒ 纹身线稿</button>
+    <button data-tool="miaobian">✎ 秒变线稿</button>
+    <button data-tool="lineart" class="active">◈ 图转线稿</button>
+  </div>
+  <p class="tool-note">导入即自动出稿。算法移植自开源项目「图转线稿」（MIT），全部本机计算，不上传图片。</p>
+
+  <div class="stencil-stage" id="laStage">
+    <div class="stage-inner">
+      <img id="laOriginal" alt="原图">
+      <img id="laResult" class="hidden" alt="线稿">
+      <div id="laCompare" class="compare hidden">
+        <img id="laCompareA" alt="原图对比">
+        <img id="laCompareB" alt="线稿对比">
+        <div class="compare-line" id="laCompareLine"><span>⇆</span></div>
+      </div>
+      <div class="stage-placeholder" id="laPlaceholder">
+        <div class="ph-icon">◈</div>
+        <h3>选择一张图片开始</h3>
+        <p>白底黑线，可直接作为纹身转印打印机底稿</p>
+      </div>
+    </div>
+    <div class="stage-badge hidden" id="laBadge">线稿</div>
+  </div>
+
+  <div class="view-modes" id="laModes">
+    <button data-mode="original">原图</button>
+    <button data-mode="result" class="active">线稿</button>
+    <button data-mode="compare">对比</button>
+  </div>
+
+  <div class="stencil-actions">
+    <button id="btnLaPick" class="btn-primary">选择图片</button>
+    <button id="btnFromSearchLa" class="btn-ghost">从搜索结果选</button>
+  </div>
+
+  <div class="panel">
+    <div class="panel-title">描线算法</div>
+    <div class="panel-body">
+      <div class="seg" id="laAlgo">
+        <button data-v="0" class="active">智能线稿</button><button data-v="1">经典勾线</button>
+      </div>
+      <small class="algo-note">智能：DoG + Sobel + 色差三路融合，适合照片与插画；经典：复刻 color-card 的相邻像素 RGB 色距勾线。</small>
+    </div>
+  </div>
+
+  <div class="panel">
+    <div class="panel-title">调节项 <span>改完自动重新生成</span></div>
+    <div class="panel-body">
+      <div class="field">
+        <label>灵敏度 <b id="laSensVal">50</b></label>
+        <input type="range" id="laSens" min="0" max="100" value="50">
+        <small>边缘检出的敏感程度，越高越容易抓到弱边缘（照片 50–70，线条画 40–50）</small>
+      </div>
+      <div class="field">
+        <label>浓度（墨量） <b id="laDensityVal">50</b>%</label>
+        <input type="range" id="laDensity" min="0" max="100" value="50">
+        <small>越高越多弱边缘被画成黑线；白底保护始终生效，底色不会变脏</small>
+      </div>
+      <div class="field">
+        <label>线条粗细 <b id="laWidthVal">1</b>×</label>
+        <input type="range" id="laWidth" min="1" max="5" value="1">
+        <small>逐档做 3×3 形态学膨胀，每档约 +2px</small>
+      </div>
+      <div class="field row"><label>纯黑白（100% 二值输出）</label>
+        <label class="switch"><input type="checkbox" id="laPureBW" checked><span></span></label></div>
+      <div class="field row"><label>镜像转印（水平翻转）</label>
+        <label class="switch"><input type="checkbox" id="laMirror"><span></span></label></div>
+      <div class="field row"><label>反色（黑底白线）</label>
+        <label class="switch"><input type="checkbox" id="laInvert"><span></span></label></div>
+      <div class="field row"><label>线条增强（去噪 / 连断线）</label>
+        <label class="switch"><input type="checkbox" id="laEnhance" checked><span></span></label></div>
+      <button id="btnLaRegen" class="btn-outline">重新生成线稿</button>
+    </div>
+  </div>
+
+  <div class="panel">
+    <div class="panel-title">提取色卡 <span>点色块复制 HEX</span></div>
+    <div class="panel-body">
+      <p class="note">融合 color-card 的 crowd（按占比取全局主色）与 naive（4×2 网格分区取色）两种算法。</p>
+      <div class="swatch-title">全局主色</div>
+      <div id="laCrowd" class="swatch-grid"><span class="swatch-empty">导入图片后自动生成</span></div>
+      <div class="swatch-title">网格色卡 4×2</div>
+      <div id="laNaive" class="swatch-grid"><span class="swatch-empty">—</span></div>
+    </div>
+  </div>
+
+  <div class="stencil-actions bottom">
+    <button id="btnLaSave" class="btn-primary">保存 PNG 底稿</button>
+    <button id="btnLaShare" class="btn-ghost">分享</button>
+  </div>
+  <div id="laStatus" class="hint">算法移植自开源项目「图转线稿」（MIT）；输出默认纯白底 + 纯黑线，适合热敏转印机。</div>
 </section>
 
 <!-- ============ 下载记录 ============ -->
@@ -225,9 +326,9 @@
   <div class="panel">
     <div class="panel-title">关于</div>
     <div class="panel-body">
-      <div class="about-row"><span>版本</span><b>2.0.0</b></div>
+      <div class="about-row"><span>版本</span><b>3.0.0</b></div>
       <div class="about-row"><span>开源协议</span><b>MIT</b></div>
-      <div class="about-row"><span>内置线稿工具</span><b>纹身线稿大师 + 秒变线稿 (MIT)</b></div>
+      <div class="about-row"><span>内置线稿工具</span><b>纹身线稿大师 + 秒变线稿 + 图转线稿 (MIT)</b></div>
       <p class="note">聚合结果来自第三方公开搜索服务，版权归原作者所有。请遵守各站点的使用条款与授权要求，勿用于商业侵权用途。</p>
       <button id="btnClearCache" class="btn-outline wide">清除图片缓存</button>
     </div>
@@ -265,6 +366,7 @@
       <button id="btnVDownload" class="btn-primary">↓ 下载图片</button>
       <button id="btnVStencil" class="btn-ghost">✒ 送纹身线稿</button>
       <button id="btnVMiaobian" class="btn-ghost">✎ 送秒变线稿</button>
+      <button id="btnVLineart" class="btn-ghost">◈ 送图转线稿</button>
       <button id="btnVOpen" class="btn-ghost">↗ 来源</button>
     </div>
   </div>

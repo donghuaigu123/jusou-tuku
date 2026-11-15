@@ -112,7 +112,7 @@
       limit: 300, safe: true, sort: 'score', maxResults: 300,
       sources: SRC_KEYS, keys: { pixabay: false, pexels: false, unsplash: false }
     };
-    if (path.indexOf('/api/app') === 0) return { ok: true, name: '聚搜图库', version: '2.0.0', maxResults: 300 };
+    if (path.indexOf('/api/app') === 0) return { ok: true, name: '聚搜图库', version: '3.0.0', maxResults: 300 };
     if (path.indexOf('/api/search') === 0) {
       var m = /[?&]q=([^&]*)/.exec(path);
       var q = m ? decodeURIComponent(m[1].replace(/\+/g, ' ')) : '';
@@ -129,7 +129,10 @@
     if (path.indexOf('/api/clear-cache') === 0) return { ok: true, cleared: 12 };
     return { ok: true };
   }
-  function demoPost(path) { return { ok: true }; }
+  function demoPost(path, body) {
+    if (path.indexOf('/api/lineart') === 0 && body && body.image) return demoLineArt(body.image, body);
+    return { ok: true };
+  }
 
   /** 演示模式下的简易线稿算法（真实环境由 Java 端 StencilProcessor 计算）。 */
   function demoStencil(dataUrl) {
@@ -164,12 +167,121 @@
     });
   }
 
+  // ---------------------------------------------------------------- 演示态：图转线稿近似算法
+  function rgbHex(r, g, b) {
+    function h(v) { v = Math.max(0, Math.min(255, Math.round(v))); return v < 16 ? '0' + v.toString(16) : v.toString(16); }
+    return ('#' + h(r) + h(g) + h(b)).toUpperCase();
+  }
+  function demoCrowd(p, need) {
+    var bins = {}, total = p.length / 4;
+    for (var i = 0; i < p.length; i += 4) {
+      var k = ((p[i] >> 5) << 6) | ((p[i + 1] >> 5) << 3) | (p[i + 2] >> 5);
+      var b = bins[k] || (bins[k] = { r: 0, g: 0, b: 0, n: 0 });
+      b.r += p[i]; b.g += p[i + 1]; b.b += p[i + 2]; b.n++;
+    }
+    var arr = [];
+    for (var key in bins) if (Object.prototype.hasOwnProperty.call(bins, key)) {
+      var x = bins[key];
+      arr.push({ hex: rgbHex(x.r / x.n, x.g / x.n, x.b / x.n),
+        ratio: Math.round(x.n / total * 1000) / 1000 });
+    }
+    arr.sort(function (a, b) { return b.ratio - a.ratio; });
+    return arr.slice(0, need);
+  }
+  function demoNaive(p, W, H, nx, ny) {
+    var out = [];
+    for (var by = 0; by < ny; by++) for (var bx = 0; bx < nx; bx++) {
+      var x0 = Math.floor(W * bx / nx), x1 = Math.floor(W * (bx + 1) / nx);
+      var y0 = Math.floor(H * by / ny), y1 = Math.floor(H * (by + 1) / ny);
+      var r = 0, g = 0, b = 0, n = 0;
+      for (var y = y0; y < y1; y++) for (var x = x0; x < x1; x++) {
+        var i = (y * W + x) * 4; r += p[i]; g += p[i + 1]; b += p[i + 2]; n++;
+      }
+      if (n) out.push({ hex: rgbHex(r / n, g / n, b / n), ratio: Math.round(n / (W * H) * 1000) / 1000 });
+    }
+    return out;
+  }
+  /** 演示模式近似「图转线稿」流水线；真机由 Java 端 LineArtCore 精确计算。 */
+  function demoLineArt(dataUrl, o) {
+    return new Promise(function (resolve, reject) {
+      var img = new Image();
+      img.onload = function () {
+        try {
+          var W = Math.min(420, img.width || 400);
+          var H = Math.max(1, Math.round(W * (img.height || 500) / (img.width || 400)));
+          var c = document.createElement('canvas'); c.width = W; c.height = H;
+          var ctx = c.getContext('2d');
+          if (o.mirror) { ctx.translate(W, 0); ctx.scale(-1, 1); }
+          ctx.drawImage(img, 0, 0, W, H);
+          ctx.setTransform(1, 0, 0, 1, 0, 0);
+          var d = ctx.getImageData(0, 0, W, H), p = d.data;
+          var crowd = demoCrowd(p, 8), naive = demoNaive(p, W, H, 4, 2);
+          var g = new Float32Array(W * H);
+          for (var i = 0, j = 0; i < p.length; i += 4, j++)
+            g[j] = p[i] * .299 + p[i + 1] * .587 + p[i + 2] * .114;
+          var thr = 10 - (o.sensitivity - 50) * 0.10 - (o.density - 50) * 0.10;
+          if (o.algo === 1) thr += 4;
+          var mask = new Uint8Array(W * H), diffArr = new Float32Array(W * H);
+          for (var y = 0; y < H; y++) for (var x = 0; x < W; x++) {
+            var id = y * W + x, sum = 0, cnt = 0;
+            for (var dy = -2; dy <= 2; dy += 2) for (var dx = -2; dx <= 2; dx += 2) {
+              var nx2 = x + dx, ny2 = y + dy;
+              if (nx2 >= 0 && nx2 < W && ny2 >= 0 && ny2 < H) { sum += g[ny2 * W + nx2]; cnt++; }
+            }
+            // 局部均值差分 + 相邻像素梯度，勾出形状硬边界（演示图是平滑渐变，
+            // 单靠均值差分几乎检不出线，这里补一路梯度近似真机 Sobel 效果）
+            var gx = (x > 0 && x < W - 1) ? Math.abs(g[id + 1] - g[id - 1]) : 0;
+            var gy = (y > 0 && y < H - 1) ? Math.abs(g[id + W] - g[id - W]) : 0;
+            var diff = Math.max(sum / cnt - g[id], Math.max(gx, gy) * 0.9);
+            diffArr[id] = diff;
+            mask[id] = diff > thr ? 1 : 0;
+          }
+          var width = Math.max(1, Math.min(5, o.lineWidth || 1));
+          for (var t = 1; t < width; t++) {
+            var src = mask, dst = new Uint8Array(W * H);
+            for (var yy = 0; yy < H; yy++) for (var xx = 0; xx < W; xx++) {
+              var q = yy * W + xx;
+              if (src[q]) { dst[q] = 1; continue; }
+              for (var ddy = -1; ddy <= 1; ddy++) {
+                var hit = false;
+                for (var ddx = -1; ddx <= 1; ddx++) {
+                  var ax = xx + ddx, ay = yy + ddy;
+                  if (ax >= 0 && ax < W && ay >= 0 && ay < H && src[ay * W + ax]) { dst[q] = 1; hit = true; break; }
+                }
+                if (hit) break;
+              }
+            }
+            mask = dst;
+          }
+          var out = ctx.createImageData(W, H), q2 = out.data;
+          for (var k = 0; k < W * H; k++) {
+            var v;
+            if (o.pureBW) v = mask[k] ? 0 : 255;
+            else v = mask[k] ? Math.max(0, Math.round(110 - diffArr[k]))
+                             : Math.min(255, Math.round(205 + diffArr[k] * 0.3));
+            if (o.invert) v = 255 - v;
+            var k4 = k * 4; q2[k4] = q2[k4 + 1] = q2[k4 + 2] = v; q2[k4 + 3] = 255;
+          }
+          ctx.putImageData(out, 0, 0);
+          resolve({ ok: true, image: c.toDataURL('image/png'), crowd: crowd, naive: naive,
+            width: W, height: H });
+        } catch (e) { reject(e); }
+      };
+      img.onerror = function () { reject(new Error('图片加载失败')); };
+      img.src = dataUrl;
+    });
+  }
+
   // ---------------------------------------------------------------- 状态
   var state = {
     tab: 'search', query: '', items: [], sorted: [], sort: 'score',
     sources: [], enabled: {}, settings: {}, viewerIndex: 0, lastBack: 0,
     stencil: { image: '', result: '', mode: 'result', preset: 1, strength: 50, detail: 50, clean: true },
-    downloads: [], pendingTool: '', mbReady: false, mbPending: null
+    lineart: { image: '', result: '', mode: 'result', algo: 0, sensitivity: 50, density: 50,
+      lineWidth: 1, pureBW: true, mirror: false, invert: false, enhance: true,
+      crowd: [], naive: [] },
+    downloads: [], pendingTool: '', mbReady: false, mbPending: null,
+    scroll: { search: 0, stencil: 0, miaobian: 0, lineart: 0, downloads: 0, settings: 0 }
   };
   try { state.downloads = JSON.parse(localStorage.getItem('jusou_downloads') || '[]'); } catch (e) {}
 
@@ -254,6 +366,9 @@
     q = (q || '').trim();
     if (!q) { toast('请先输入要搜索的图片内容'); return; }
     state.query = q;
+    // 结果已变化，旧的滚动位置不再有意义
+    state.scroll.search = 0;
+    window.scrollTo(0, 0);
     $('#q').value = q;
     $('#loading').classList.remove('hidden');
     $('#empty').classList.add('hidden');
@@ -413,8 +528,11 @@
       }).catch(function (e) { toast('保存失败：' + e.message); })
       .then(function () { busy(false); });
   }
-  function setupCompareDrag() {
-    var box = $('#stCompare'), line = $('#stCompareLine'), b = $('#stCompareB');
+  function wireCompare(boxSel, lineSel, bSel, getMode) {
+    var box = $(boxSel), line = $(lineSel), b = $(bSel);
+    if (!box || !line || !b) return;
+    line.style.left = '50%';
+    b.style.clipPath = 'inset(0 0 0 50%)';
     var dragging = false;
     function move(clientX) {
       var r = box.getBoundingClientRect();
@@ -427,14 +545,18 @@
     function end() { dragging = false; }
     line.addEventListener('touchstart', start, { passive: false });
     box.addEventListener('touchstart', function (e) {
-      if (state.stencil.mode === 'compare') start(e);
+      if (getMode() === 'compare') start(e);
     }, { passive: false });
     window.addEventListener('touchmove', onMove, { passive: false });
     window.addEventListener('touchend', end);
     line.addEventListener('mousedown', start);
-    box.addEventListener('mousedown', function (e) { if (state.stencil.mode === 'compare') start(e); });
+    box.addEventListener('mousedown', function (e) { if (getMode() === 'compare') start(e); });
     window.addEventListener('mousemove', onMove);
     window.addEventListener('mouseup', end);
+  }
+  function setupCompareDrag() {
+    wireCompare('#stCompare', '#stCompareLine', '#stCompareB', function () { return state.stencil.mode; });
+    wireCompare('#laCompare', '#laCompareLine', '#laCompareB', function () { return state.lineart.mode; });
   }
 
   // ---------------------------------------------------------------- 秒变线稿工具页
@@ -498,6 +620,119 @@
       closeViewer();
       sendToMiaobian(dataUrl, (it.title || '图片').slice(0, 40));
       toast('已送入「秒变线稿」');
+    }).catch(function (e) { toast('读取图片失败：' + e.message); })
+      .then(function () { busy(false); });
+  }
+
+  // ---------------------------------------------------------------- 图转线稿工具页
+  function renderLineartStage() {
+    var s = state.lineart, mode = s.mode, has = !!s.result;
+    if (!s.image) {
+      ['#laOriginal', '#laResult', '#laCompare', '#laBadge'].forEach(function (k) { $(k).classList.add('hidden'); });
+      $('#laPlaceholder').classList.remove('hidden');
+      return;
+    }
+    $('#laPlaceholder').classList.add('hidden');
+    $('#laOriginal').classList.toggle('hidden', !(mode === 'original' || !has));
+    $('#laResult').classList.toggle('hidden', !(mode === 'result' && has));
+    $('#laCompare').classList.toggle('hidden', !(mode === 'compare' && has));
+    $('#laBadge').classList.remove('hidden');
+    $('#laBadge').textContent = ({ original: '原图', result: '线稿', compare: '拖动分割线对比' })[mode];
+    $('#laOriginal').src = s.image;
+    if (has) {
+      $('#laResult').src = s.result;
+      $('#laCompareA').src = s.image;
+      $('#laCompareB').src = s.result;
+    }
+    $$('#laModes button').forEach(function (b) { b.classList.toggle('active', b.dataset.mode === mode); });
+  }
+  function renderSwatches() {
+    function fill(id, list) {
+      var box = $(id);
+      box.innerHTML = '';
+      if (!list || !list.length) { box.innerHTML = '<span class="swatch-empty">—</span>'; return; }
+      list.forEach(function (sw) {
+        var b = document.createElement('button');
+        b.className = 'swatch';
+        b.style.background = sw.hex;
+        b.title = sw.hex + (sw.ratio ? ' · ' + (sw.ratio * 100).toFixed(1) + '%' : '');
+        b.innerHTML = '<span>' + esc(sw.hex) + '</span>';
+        b.addEventListener('click', function () {
+          try { if (navigator.clipboard) navigator.clipboard.writeText(sw.hex).catch(function () {}); } catch (e) {}
+          toast('已复制色值 ' + sw.hex);
+        });
+        box.appendChild(b);
+      });
+    }
+    fill('#laCrowd', state.lineart.crowd);
+    fill('#laNaive', state.lineart.naive);
+  }
+  function setLineartImage(dataUrl) {
+    state.lineart.image = dataUrl;
+    state.lineart.result = '';
+    renderLineartStage();
+    generateLineart();
+  }
+  var laTimer;
+  function scheduleLaRegen() {
+    clearTimeout(laTimer);
+    laTimer = setTimeout(generateLineart, 500);
+  }
+  function generateLineart() {
+    var s = state.lineart;
+    if (!s.image) { toast('请先选择一张图片'); return; }
+    busy(true, '正在本机计算线稿…');
+    $('#laStatus').textContent = '自动色阶 → DoG / Sobel / 色差边缘 → 自适应二值化 → 连通域去噪 → 加粗连断线';
+    var payload = {
+      image: s.image, mode: s.algo, sensitivity: s.sensitivity, density: s.density,
+      lineWidth: s.lineWidth, pureBW: s.pureBW, mirror: s.mirror,
+      invert: s.invert, enhance: s.enhance
+    };
+    var p = DEMO ? demoLineArt(s.image, s) : apiPost('/api/lineart', payload).then(function (r) {
+      if (!r.ok && r.error) throw new Error(r.error);
+      return r;
+    });
+    p.then(function (r) {
+      s.result = r.image;
+      s.crowd = r.crowd || [];
+      s.naive = r.naive || [];
+      s.mode = 'result';
+      renderLineartStage();
+      renderSwatches();
+      $('#laStatus').textContent = '线稿已生成：' + (r.width || '') + '×' + (r.height || '')
+        + ' · ' + (s.pureBW ? '纯二值白底黑线' : '柔和灰阶')
+        + (s.mirror ? ' · 已镜像' : '') + ' · 可拖动分割线对比。';
+    }).catch(function (e) { toast('生成失败：' + e.message); })
+      .then(function () { busy(false); });
+  }
+  function saveLineart() {
+    var s = state.lineart;
+    if (!s.result) { toast('请先生成线稿'); return; }
+    var name = '图转线稿_' + Date.now() + '.png';
+    busy(true, '正在保存 PNG 底稿…');
+    if (DEMO) {
+      var a = document.createElement('a'); a.href = s.result; a.download = name; a.click();
+      addDownload({ name: name, path: '浏览器下载（演示）', thumb: s.result,
+        time: Date.now(), source: '图转线稿' });
+      toast('演示模式：已触发浏览器下载'); busy(false); return;
+    }
+    apiPost('/api/save-image', { image: s.result, name: name, mime: 'image/png' })
+      .then(function (r) {
+        addDownload({ name: name, path: r.path || '已保存', thumb: s.result,
+          time: Date.now(), source: '图转线稿' });
+        toast('已保存：' + (r.path || ''));
+        if (Native.toast) Native.toast('底稿已保存：' + name);
+      }).catch(function (e) { toast('保存失败：' + e.message); })
+      .then(function () { busy(false); });
+  }
+  function lineartFromViewer() {
+    var it = state.sorted[state.viewerIndex]; if (!it) return;
+    busy(true, '正在读取图片…');
+    imageToDataUrl(it.full || it.thumb, it.page || it.full).then(function (dataUrl) {
+      closeViewer();
+      switchTab('lineart');
+      setLineartImage(dataUrl);
+      toast('已送入「图转线稿」');
     }).catch(function (e) { toast('读取图片失败：' + e.message); })
       .then(function () { busy(false); });
   }
@@ -596,20 +831,54 @@
     if (state.query) doSearch(state.query);
   }
 
+  // ---------------------------------------------------------------- 页面滚动位置保持
+  // 搜图页（#app）跟随 window 滚动；子页面 .page 是 position:fixed 的独立滚动容器。
+  // #app 被 display:none 后浏览器会把 window.scrollY 强制清零，因此必须在隐藏前
+  // 保存、在目标页显示且布局完成后恢复，否则从线稿工具返回会跳回结果顶部。
+  var PAGE_EL = {
+    stencil: '#pageStencil', miaobian: '#pageMiaobian', lineart: '#pageLineart',
+    downloads: '#pageDownloads', settings: '#pageSettings'
+  };
+  function saveScroll(tab) {
+    if (!tab) return;
+    if (tab === 'search') {
+      state.scroll.search = window.pageYOffset || document.documentElement.scrollTop
+        || document.body.scrollTop || 0;
+    } else {
+      var el = $(PAGE_EL[tab]);
+      if (el) state.scroll[tab] = el.scrollTop || 0;
+    }
+  }
+  function restoreScroll(tab) {
+    var y = state.scroll[tab] || 0;
+    var raf = window.requestAnimationFrame;
+    if (tab === 'search') {
+      var apply = function () { window.scrollTo(0, y); };
+      apply();  // 同步先试一次
+      if (raf) raf(function () { raf(apply); });  // 等 #app 重新布局后再恢复
+    } else {
+      var el = $(PAGE_EL[tab]);
+      if (!el) return;
+      el.scrollTop = y;
+      if (raf) raf(function () { el.scrollTop = y; });
+    }
+  }
+
   // ---------------------------------------------------------------- Tab / 返回
   function switchTab(t) {
+    saveScroll(state.tab);   // 关键：DOM 隐藏前先记住当前页位置
     state.tab = t;
     $$('#tabbar button').forEach(function (b) { b.classList.toggle('active', b.dataset.tab === t); });
     $('#app').classList.toggle('hidden', t !== 'search');
     $('#pageStencil').classList.toggle('hidden', t !== 'stencil');
     $('#pageMiaobian').classList.toggle('hidden', t !== 'miaobian');
+    $('#pageLineart').classList.toggle('hidden', t !== 'lineart');
     $('#pageDownloads').classList.toggle('hidden', t !== 'downloads');
     $('#pageSettings').classList.toggle('hidden', t !== 'settings');
-    window.scrollTo(0, 0);
-    $('.page:not(.hidden)') && ($('.page:not(.hidden)').scrollTop = 0);
     if (t === 'settings') loadSettings();
     if (t === 'downloads') renderDownloads();
     if (t === 'miaobian') ensureMiaobian();
+    restoreScroll(t);   // 关键：不再无条件归零，恢复目标页上次的位置
   }
   window.__onBack = function () {
     if (!$('#viewer').classList.contains('hidden')) { closeViewer(); return; }
@@ -636,6 +905,7 @@
       busy(true, '正在读取所选图片…');
       blobToDataUrl(m.url).then(function (dataUrl) {
         if (target === 'miaobian') sendToMiaobian(dataUrl, '相册图片');
+        else if (target === 'lineart') { switchTab('lineart'); setLineartImage(dataUrl); }
         else { switchTab('stencil'); setStencilImage(dataUrl); }
       }).catch(function (e) { toast('图片读取失败：' + e.message); })
         .then(function () { busy(false); });
@@ -644,6 +914,7 @@
     busy(false);
     if (m && m.ok && m.image) {
       if (target === 'miaobian') sendToMiaobian(m.image, '相册图片');
+      else if (target === 'lineart') { switchTab('lineart'); setLineartImage(m.image); }
       else { switchTab('stencil'); setStencilImage(m.image); }
     } else toast('图片读取失败：' + ((m && m.error) || '未知错误'));
   };
@@ -693,7 +964,7 @@
       b.addEventListener('click', function () { switchTab(b.dataset.tab); });
     });
 
-    // 双线稿工具切换器（两个页面顶部各一份）
+    // 三线稿工具切换器（三个页面顶部各一份）
     $$('.tool-switch button').forEach(function (b) {
       b.addEventListener('click', function () { switchTab(b.dataset.tool); });
     });
@@ -707,6 +978,51 @@
       toast('点查看器里的「✎ 送秒变线稿」即可导入');
     });
 
+    // 图转线稿工具页
+    $('#btnLaPick').addEventListener('click', function () {
+      if (DEMO) { setLineartImage(demoSvg('la-' + Date.now())); toast('演示模式：已载入示例图'); }
+      else { state.pendingTool = 'lineart'; native('pickImage'); }
+    });
+    $('#btnFromSearchLa').addEventListener('click', function () {
+      if (!state.items.length) { toast('请先在「搜图」里搜一批图片'); return; }
+      switchTab('search'); openViewer(0);
+      toast('点查看器里的三个「送…线稿」按钮即可导入');
+    });
+    $$('#laModes button').forEach(function (b) {
+      b.addEventListener('click', function () {
+        if (!state.lineart.result) { toast('请先生成线稿'); return; }
+        state.lineart.mode = b.dataset.mode; renderLineartStage();
+      });
+    });
+    $$('#laAlgo button').forEach(function (b) {
+      b.addEventListener('click', function () {
+        state.lineart.algo = parseInt(b.dataset.v, 10);
+        $$('#laAlgo button').forEach(function (x) { x.classList.toggle('active', x === b); });
+        generateLineart();
+      });
+    });
+    [['#laSens', '#laSensVal', 'sensitivity'], ['#laDensity', '#laDensityVal', 'density'],
+     ['#laWidth', '#laWidthVal', 'lineWidth']].forEach(function (t) {
+      var el = $(t[0]), lab = $(t[1]), key = t[2];
+      el.addEventListener('input', function () {
+        lab.textContent = this.value;
+        state.lineart[key] = parseInt(this.value, 10);
+      });
+      el.addEventListener('change', scheduleLaRegen);
+    });
+    [['#laPureBW', 'pureBW'], ['#laMirror', 'mirror'], ['#laInvert', 'invert'],
+     ['#laEnhance', 'enhance']].forEach(function (t) {
+      $(t[0]).addEventListener('change', function () {
+        state.lineart[t[1]] = this.checked;
+        scheduleLaRegen();
+      });
+    });
+    $('#btnLaRegen').addEventListener('click', generateLineart);
+    $('#btnLaSave').addEventListener('click', saveLineart);
+    $('#btnLaShare').addEventListener('click', function () {
+      native('shareText', '我用「聚搜图库 · 图转线稿」生成了一张转印线稿');
+    });
+
     // 查看器
     $('#btnViewerClose').addEventListener('click', closeViewer);
     $('#vPrev').addEventListener('click', function () { viewerStep(-1); });
@@ -714,6 +1030,7 @@
     $('#btnVDownload').addEventListener('click', downloadCurrent);
     $('#btnVStencil').addEventListener('click', stencilFromViewer);
     $('#btnVMiaobian').addEventListener('click', miaobianFromViewer);
+    $('#btnVLineart').addEventListener('click', lineartFromViewer);
     $('#btnVOpen').addEventListener('click', function () {
       var it = state.sorted[state.viewerIndex];
       if (it && it.page) native('openExternal', it.page); else toast('该图片没有来源页面');
@@ -739,7 +1056,7 @@
     $('#btnFromSearch').addEventListener('click', function () {
       if (!state.items.length) { toast('请先在「搜图」里搜一批图片'); return; }
       switchTab('search'); openViewer(0);
-      toast('点查看器里的「✒ 送纹身线稿」或「✎ 送秒变线稿」即可导入');
+      toast('点查看器里的「✒ 送纹身线稿」「✎ 送秒变线稿」「◈ 送图转线稿」即可导入');
     });
     $$('#stModes button').forEach(function (b) {
       b.addEventListener('click', function () {
@@ -816,6 +1133,8 @@
       state.sources = DEMO_SOURCES;
     }).then(function () {
       renderStage();
+      renderLineartStage();
+      renderSwatches();
       if (DEMO) toast('演示模式：展示的是模拟数据，真机内会检索真实图源');
     });
   }
