@@ -1,14 +1,13 @@
 import com.donghuaigu.jusou.ImageItem;
 import com.donghuaigu.jusou.SearchEngine;
 
-import java.util.Arrays;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Set;
 
 /**
  * 桌面端集成测试：不依赖 Android，直接对真实图片源发起请求，
- * 验证解析 / 去重 / 相关度与热度打分 / 100 张截断。
+ * 验证解析 / 去重 / 相关度与热度打分 / 300 张截断。
  *
  * 用法：
  *   javac -encoding UTF-8 -d build/test Json.java Net.java ImageItem.java SearchEngine.java ../scripts/SearchEngineTest.java
@@ -17,12 +16,15 @@ import java.util.Set;
 public class SearchEngineTest {
     public static void main(String[] args) {
         String q = args.length > 0 ? args[0] : "纹身 线稿";
-        Set<String> on = new HashSet<String>(Arrays.asList(
-                "bing", "sogou", "so360", "baidu", "nasa"));
+        Set<String> on = new HashSet<String>(SearchEngine.DEFAULT_ENABLED);
         System.out.println("搜索词: " + q);
         System.out.println("启用源: " + on);
-        SearchEngine.Result r = SearchEngine.search(q, on, 100, true, new HashMap<String, String>());
+        SearchEngine.Result r = SearchEngine.search(q, on, SearchEngine.MAX_RESULTS, true, new HashMap<String, String>());
+        System.out.println("上限: " + SearchEngine.MAX_RESULTS + " 张");
         System.out.println("耗时: " + r.elapsedMs + " ms, 去重后: " + r.items.size() + " 张");
+        if (r.items.size() > SearchEngine.MAX_RESULTS) {
+            System.out.println("!!! 超过上限，截断逻辑异常"); System.exit(1);
+        }
         System.out.println("--- 各源状态 ---");
         for (SearchEngine.SourceStat s : r.stats) {
             System.out.printf("  %-22s count=%-3d ms=%-6d %s%n",

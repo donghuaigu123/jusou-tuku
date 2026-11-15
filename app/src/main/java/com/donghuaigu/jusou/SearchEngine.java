@@ -28,13 +28,13 @@ import java.util.regex.Pattern;
  *  - 每个图片源是一个独立适配器，并发请求、单独超时与容错；任一源失败不影响其它源。
  *  - 结果统一成 ImageItem，按「贴近搜索词的相关度」+「热门程度」打分。
  *    「热门」由源内排名、源提供的浏览/下载/点赞数、以及被多个源同时命中的次数共同决定。
- *  - 按规范化 URL 去重，最后按综合分排序并截断到最多 100 张。
+ *  - 按规范化 URL 去重，最后按综合分排序并截断到最多 300 张。
  *  - 纯 Java，无 Android / 第三方依赖，可在桌面 JVM 上直接跑集成测试。
  */
 public final class SearchEngine {
     private SearchEngine() {}
 
-    public static final int MAX_RESULTS = 100;
+    public static final int MAX_RESULTS = 300;
 
     public interface Source {
         String key();
@@ -115,6 +115,9 @@ public final class SearchEngine {
         if (q.isEmpty()) { result.elapsedMs = 0; return result; }
 
         final int cap = Math.max(1, Math.min(MAX_RESULTS, limit <= 0 ? MAX_RESULTS : limit));
+        // 每源抓取量随目标上限动态调整：上限提高时多取一些，保证去重后仍能凑满 300 张。
+        // 各 Source 内部还有自己的接口上限（20~60），所以这里放大不会引发过量请求。
+        final int perSource = Math.max(40, Math.min(60, (cap + 5) / 5));
         final Set<String> on = (enabled == null || enabled.isEmpty())
                 ? new HashSet<String>(DEFAULT_ENABLED) : new HashSet<String>(enabled);
         final Map<String, String> kk = keys == null ? new HashMap<String, String>() : keys;
@@ -140,7 +143,7 @@ public final class SearchEngine {
             started.put(s.key(), System.currentTimeMillis());
             futures.put(s.key(), pool.submit(new Callable<List<ImageItem>>() {
                 public List<ImageItem> call() throws Exception {
-                    return s.fetch(q, 40, safe, kk);
+                    return s.fetch(q, perSource, safe, kk);
                 }
             }));
         }

@@ -186,9 +186,9 @@ public final class DownloadManager {
         n = n.replaceAll("[/\\\\:*?\"<>|\\r\\n\\t]", "_").replaceAll("\\s+", " ").trim();
         if (n.isEmpty()) n = "聚搜图库_" + System.currentTimeMillis();
         if (n.length() > 80) n = n.substring(0, 80);
-        String ext = mime.contains("png") ? ".png" : mime.contains("webp") ? ".webp"
-                : mime.contains("gif") ? ".gif" : ".jpg";
-        if (!n.toLowerCase(java.util.Locale.US).matches(".*\\.(jpg|jpeg|png|webp|gif|bmp)$")) n += ext;
+        String ext = mime.contains("zip") ? ".zip" : mime.contains("png") ? ".png"
+                : mime.contains("webp") ? ".webp" : mime.contains("gif") ? ".gif" : ".jpg";
+        if (!n.toLowerCase(java.util.Locale.US).matches(".*\\.(jpg|jpeg|png|webp|gif|bmp|zip)$")) n += ext;
         return n;
     }
 }

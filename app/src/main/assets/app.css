@@ -259,3 +259,30 @@ input[type=range]::-webkit-slider-thumb{appearance:none;width:18px;height:18px;b
 .busy{position:fixed;inset:0;z-index:90;background:rgba(6,8,14,.72);display:flex;
   flex-direction:column;align-items:center;justify-content:center;gap:14px;font-size:12.5px;color:var(--muted)}
 .busy .spinner{width:40px;height:40px}
+
+
+/* ============================================================
+ * v2.0 · 双线稿工具：切换器 / 秒变线稿 iframe 工具页
+ * ============================================================ */
+.tabbar button{font-size:10px;padding:9px 2px 8px}
+.tabbar button span{white-space:nowrap;letter-spacing:-.2px}
+
+.tool-switch{display:flex;gap:6px;background:var(--surface2);border:1px solid var(--line);
+  border-radius:12px;padding:4px;margin-bottom:10px}
+.tool-switch button{flex:1;padding:9px 6px;border-radius:9px;font-size:12px;color:var(--muted);
+  white-space:nowrap;transition:.18s}
+.tool-switch button.active{background:var(--grad);color:#fff;font-weight:600;
+  box-shadow:0 4px 14px rgba(124,108,255,.28)}
+.tool-note{margin:0 0 14px;font-size:11px;color:var(--dim);line-height:1.6}
+
+#pageMiaobian{display:flex;flex-direction:column;overflow:hidden;
+  padding-left:0;padding-right:0;padding-bottom:calc(58px + var(--safe-b))}
+.mb-head{flex:none;padding:0 16px 10px}
+.mb-head .page-head{margin-bottom:10px}
+.mb-quick{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-top:10px}
+.mb-tip{font-size:10.5px;color:var(--dim);flex:1 1 100%;line-height:1.5}
+#mbFrame{flex:1;min-height:0;width:100%;border:0;display:block;background:#08090c}
+
+/* 查看器 4 个动作按钮改为两行排布 */
+.viewer-actions{flex-wrap:wrap}
+.viewer-actions button{flex:1 1 44%;min-width:0}

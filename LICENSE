@@ -28,3 +28,11 @@ app/src/main/java/com/donghuaigu/jusou/StencilProcessor.java
   Ported from "纹身线稿大师 / tattoo-stencil-maker"
   https://github.com/donghuaigu123/tattoo-stencil-maker
   Copyright (c) 2026 donghuaigu123, MIT License.
+
+app/src/main/assets/miaobian.html
+  Adapted from "秒变线稿 / tattoo-stencil-studio"
+  https://github.com/donghuaigu123/tattoo-stencil-studio
+  Copyright (c) 2026 秒变线稿 contributors, MIT License.
+  The original single-file application is kept intact; only a small
+  host adapter layer (save bridge + image push) is injected at its
+  head and tail. It also embeds UTIF.js and pako, both MIT licensed.

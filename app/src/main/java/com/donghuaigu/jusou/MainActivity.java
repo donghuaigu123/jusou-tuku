@@ -2,15 +2,19 @@ package com.donghuaigu.jusou;
 
 import android.app.Activity;
 import android.content.Intent;
+import android.database.Cursor;
 import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
 import android.graphics.Matrix;
 import android.net.Uri;
 import android.os.Build;
 import android.os.Bundle;
+import android.provider.OpenableColumns;
 import android.view.View;
 import android.view.ViewGroup;
 import android.webkit.JavascriptInterface;
+import android.webkit.ValueCallback;
+import android.webkit.WebChromeClient;
 import android.webkit.WebResourceRequest;
 import android.webkit.WebSettings;
 import android.webkit.WebView;
@@ -18,7 +22,11 @@ import android.webkit.WebViewClient;
 import android.widget.Toast;
 
 import java.io.ByteArrayOutputStream;
+import java.io.File;
+import java.io.FileOutputStream;
 import java.io.InputStream;
+import java.io.OutputStream;
+import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.Map;
 
@@ -28,11 +36,14 @@ public class MainActivity extends Activity {
     private static final int REQ_DIR = 1001;
     private static final int REQ_IMAGE = 1002;
     private static final int REQ_PERMISSION = 1003;
+    /** 「秒变线稿」iframe 内 &lt;input type=file&gt; 触发的系统选图 */
+    private static final int REQ_MB_IMAGE = 1004;
 
     private WebView web;
     private LocalServer server;
     private DownloadManager downloads;
     private String baseUrl;
+    private ValueCallback<Uri[]> mbFilePathCallback;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -55,6 +66,14 @@ public class MainActivity extends Activity {
         ws.setJavaScriptEnabled(true);
         ws.setDomStorageEnabled(true);
         ws.setAllowFileAccess(true);
+        ws.setAllowContentAccess(true);
+        // 「秒变线稿」是同源 iframe（由本地 HTTP 服务提供），其系统选图回传的是
+        // 应用私有缓存里的 file:// URI；允许本机回环页面读取，避免部分机型读不到。
+        // 页面内容全部来自 assets，不加载任何不可信远程页面。
+        try {
+            ws.setAllowFileAccessFromFileURLs(true);
+            ws.setAllowUniversalAccessFromFileURLs(true);
+        } catch (Throwable ignored) {}
         ws.setLoadWithOverviewMode(false);
         ws.setUseWideViewPort(true);
         ws.setSupportZoom(false);
@@ -77,6 +96,26 @@ public class MainActivity extends Activity {
                 try {
                     startActivity(new Intent(Intent.ACTION_VIEW, Uri.parse(url)));
                 } catch (Exception ignored) {}
+                return true;
+            }
+        });
+        web.setWebChromeClient(new WebChromeClient() {
+            @Override
+            public boolean onShowFileChooser(WebView view, ValueCallback<Uri[]> callback,
+                                             FileChooserParams params) {
+                if (mbFilePathCallback != null) mbFilePathCallback.onReceiveValue(null);
+                mbFilePathCallback = callback;
+                Intent i = new Intent(Intent.ACTION_GET_CONTENT);
+                i.addCategory(Intent.CATEGORY_OPENABLE);
+                i.setType("image/*");
+                i.putExtra(Intent.EXTRA_ALLOW_MULTIPLE, true);
+                try {
+                    startActivityForResult(Intent.createChooser(i, "选择图片"), REQ_MB_IMAGE);
+                } catch (Exception e) {
+                    mbFilePathCallback = null;
+                    toast("无法打开文件选择器");
+                    return false;
+                }
                 return true;
             }
         });
@@ -104,6 +143,31 @@ public class MainActivity extends Activity {
 
     @Override
     protected void onActivityResult(int req, int result, Intent data) {
+        if (req == REQ_MB_IMAGE) {
+            // content:// 在部分机型上 WebView 读不到，先复制到应用私有缓存并保留原文件名
+            Uri[] picked = null;
+            if (result == RESULT_OK && data != null) {
+                ArrayList<Uri> uris = new ArrayList<Uri>();
+                if (data.getClipData() != null) {
+                    for (int i = 0; i < data.getClipData().getItemCount(); i++) {
+                        uris.add(data.getClipData().getItemAt(i).getUri());
+                    }
+                } else if (data.getData() != null) {
+                    uris.add(data.getData());
+                }
+                ArrayList<Uri> local = new ArrayList<Uri>();
+                for (int i = 0; i < uris.size(); i++) {
+                    Uri copy = copyToCache(uris.get(i), i);
+                    if (copy != null) local.add(copy);
+                }
+                if (!local.isEmpty()) picked = local.toArray(new Uri[local.size()]);
+            }
+            if (mbFilePathCallback != null) {
+                mbFilePathCallback.onReceiveValue(picked);
+                mbFilePathCallback = null;
+            }
+            return;
+        }
         super.onActivityResult(req, result, data);
         if (result != RESULT_OK || data == null) return;
         if (req == REQ_DIR) {
@@ -119,6 +183,58 @@ public class MainActivity extends Activity {
                 public void run() { loadPickedImage(data.getData()); }
             }, "jusou-pick").start();
         }
+    }
+
+    /** 把 content:// 图片复制成应用缓存里的普通文件，保留显示名供导出使用。 */
+    private Uri copyToCache(Uri src, int index) {
+        String name = displayName(src);
+        String safe = name.replaceAll("[^a-zA-Z0-9._-]", "_");
+        if (safe.isEmpty()) safe = "image_" + index;
+        if (!safe.contains(".")) safe = safe + ".jpg";
+        File dir = new File(getCacheDir(), "mbpicks");
+        if (!dir.exists() && !dir.mkdirs()) return null;
+        File out = new File(dir, safe);
+        int seq = 2;
+        while (out.exists() && seq < 100) {
+            int dot = safe.lastIndexOf('.');
+            String base = dot > 0 ? safe.substring(0, dot) : safe;
+            String ext = dot > 0 ? safe.substring(dot) : "";
+            out = new File(dir, base + "_" + (seq++) + ext);
+        }
+        InputStream in = null;
+        OutputStream os = null;
+        try {
+            in = getContentResolver().openInputStream(src);
+            if (in == null) return null;
+            os = new FileOutputStream(out);
+            byte[] buf = new byte[16384];
+            int n;
+            while ((n = in.read(buf)) > 0) os.write(buf, 0, n);
+            os.flush();
+            return Uri.fromFile(out);
+        } catch (Exception e) {
+            return null;
+        } finally {
+            try { if (in != null) in.close(); } catch (Exception ignored) {}
+            try { if (os != null) os.close(); } catch (Exception ignored) {}
+        }
+    }
+
+    private String displayName(Uri uri) {
+        String name = "image";
+        Cursor c = null;
+        try {
+            c = getContentResolver().query(uri, null, null, null, null);
+            if (c != null) {
+                int idx = c.getColumnIndex(OpenableColumns.DISPLAY_NAME);
+                if (idx >= 0 && c.moveToFirst()) {
+                    String v = c.getString(idx);
+                    if (v != null && !v.isEmpty()) name = v;
+                }
+            }
+        } catch (Exception ignored) {
+        } finally { if (c != null) try { c.close(); } catch (Exception ignored) {} }
+        return name;
     }
 
     private void loadPickedImage(Uri uri) {
@@ -169,6 +285,12 @@ public class MainActivity extends Activity {
                     web.evaluateJavascript("window." + fn + " && window." + fn + "(" + argJson + ")", null);
                 }
             }
+        });
+    }
+
+    private void toast(final String msg) {
+        runOnUiThread(new Runnable() {
+            public void run() { Toast.makeText(MainActivity.this, msg, Toast.LENGTH_SHORT).show(); }
         });
     }
 
@@ -245,7 +367,7 @@ public class MainActivity extends Activity {
         public void finishApp() { runOnUiThread(new Runnable() { public void run() { finish(); } }); }
 
         @JavascriptInterface
-        public String version() { return "1.0.0"; }
+        public String version() { return "2.0.0"; }
     }
 
 }

@@ -31,7 +31,7 @@ for f in "$BT_DIR/aapt2" "$BT_DIR/d8" "$BT_DIR/zipalign" "$BT_DIR/apksigner" "$P
 done
 
 BUILD="$ROOT/build"
-OUT="$ROOT/apk/jusou-tuku-v1.0.0.apk"
+OUT="$ROOT/apk/jusou-tuku-v2.0.0.apk"
 rm -rf "$BUILD"
 mkdir -p "$BUILD/compiled" "$BUILD/gen" "$BUILD/classes" "$BUILD/dex" "$ROOT/apk"
 
@@ -63,7 +63,7 @@ echo "[3/8] 链接资源、assets 并生成 R.java"
   --java "$BUILD/gen" \
   --auto-add-overlay \
   --min-sdk-version 24 --target-sdk-version 35 \
-  --version-code 1 --version-name 1.0.0
+  --version-code 2 --version-name 2.0.0
 
 echo "[4/8] 编译 Java 源码"
 find app/src/main/java "$BUILD/gen" -name '*.java' > "$BUILD/sources.txt"

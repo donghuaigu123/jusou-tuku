@@ -32,8 +32,8 @@ public final class Settings {
     public void remove(String k) { p.edit().remove(k).apply(); }
 
     public int limit() {
-        int v = 100;
-        try { v = Integer.parseInt(p.getString(KEY_LIMIT, "100")); } catch (Exception ignored) {}
+        int v = SearchEngine.MAX_RESULTS;
+        try { v = Integer.parseInt(p.getString(KEY_LIMIT, "300")); } catch (Exception ignored) {}
         return Math.max(1, Math.min(SearchEngine.MAX_RESULTS, v));
     }
 
@@ -95,8 +95,8 @@ public final class Settings {
         SharedPreferences.Editor e = p.edit();
         if (m.containsKey("limit")) {
             try {
-                int v = Json.integer(m.get("limit"), 100);
-                e.putString(KEY_LIMIT, String.valueOf(Math.max(1, Math.min(100, v))));
+                int v = Json.integer(m.get("limit"), SearchEngine.MAX_RESULTS);
+                e.putString(KEY_LIMIT, String.valueOf(Math.max(1, Math.min(SearchEngine.MAX_RESULTS, v))));
             } catch (Exception ignored) {}
         }
         if (m.containsKey("safe")) e.putBoolean(KEY_SAFE, Boolean.TRUE.equals(m.get("safe")));

@@ -87,7 +87,7 @@
     return 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(svg);
   }
   function demoItems(q) {
-    var arr = [], n = 36;
+    var arr = [], n = 60;
     for (var i = 0; i < n; i++) {
       var k = i % SRC_KEYS.length;
       var rel = 0.35 + ((hashCode(q + i) % 60) / 100);
@@ -109,10 +109,10 @@
     if (path.indexOf('/api/sources') === 0) return { sources: DEMO_SOURCES };
     if (path.indexOf('/api/settings') === 0) return {
       ok: true, dirLabel: '系统下载 / 聚搜图库（演示）', hasCustomDir: false, subdir: '聚搜图库',
-      limit: 100, safe: true, sort: 'score', maxResults: 100,
+      limit: 300, safe: true, sort: 'score', maxResults: 300,
       sources: SRC_KEYS, keys: { pixabay: false, pexels: false, unsplash: false }
     };
-    if (path.indexOf('/api/app') === 0) return { ok: true, name: '聚搜图库', version: '1.0.0', maxResults: 100 };
+    if (path.indexOf('/api/app') === 0) return { ok: true, name: '聚搜图库', version: '2.0.0', maxResults: 300 };
     if (path.indexOf('/api/search') === 0) {
       var m = /[?&]q=([^&]*)/.exec(path);
       var q = m ? decodeURIComponent(m[1].replace(/\+/g, ' ')) : '';
@@ -169,7 +169,7 @@
     tab: 'search', query: '', items: [], sorted: [], sort: 'score',
     sources: [], enabled: {}, settings: {}, viewerIndex: 0, lastBack: 0,
     stencil: { image: '', result: '', mode: 'result', preset: 1, strength: 50, detail: 50, clean: true },
-    downloads: []
+    downloads: [], pendingTool: '', mbReady: false, mbPending: null
   };
   try { state.downloads = JSON.parse(localStorage.getItem('jusou_downloads') || '[]'); } catch (e) {}
 
@@ -437,6 +437,71 @@
     window.addEventListener('mouseup', end);
   }
 
+  // ---------------------------------------------------------------- 秒变线稿工具页
+  function ensureMiaobian() {
+    var f = $('#mbFrame');
+    if (!f || f.dataset.loaded) return;
+    if (DEMO) {
+      if (window.JUSOU_MIAOBIAN_HTML) f.srcdoc = window.JUSOU_MIAOBIAN_HTML;
+      else f.srcdoc = '<!doctype html><meta charset="utf-8"><body style="background:#08090c;color:#8b93a3;font:14px system-ui;padding:28px">演示模式未内联「秒变线稿」页面，请用 scripts/make-preview.py 重新生成预览页。</body>';
+    } else {
+      f.src = f.dataset.src || '/miaobian.html';
+    }
+    f.dataset.loaded = '1';
+    state.mbReady = false;
+  }
+  function postToMb(msg) {
+    try {
+      var w = $('#mbFrame').contentWindow;
+      if (w) w.postMessage(msg, '*');
+    } catch (e) {}
+  }
+  function sendToMiaobian(dataUrl, name) {
+    switchTab('miaobian');
+    ensureMiaobian();
+    var msg = { __jusou: 'image', dataUrl: dataUrl, name: name || '聚搜图库图片' };
+    if (state.mbReady) postToMb(msg); else state.mbPending = msg;
+  }
+  function handleMbSave(d) {
+    if (!d.data) { toast('保存失败：数据为空'); return; }
+    var mime = d.mime || 'image/jpeg';
+    var name = d.name || ('秒变线稿_' + Date.now() + '.jpg');
+    var dataUrl = 'data:' + mime + ';base64,' + d.data;
+    if (DEMO) {
+      var a = document.createElement('a'); a.href = dataUrl; a.download = name; a.click();
+      addDownload({ name: name, path: '浏览器下载（演示）', thumb: '', time: Date.now(), source: '秒变线稿' });
+      toast('演示模式：已触发浏览器下载'); return;
+    }
+    busy(true, '正在保存导出文件…');
+    apiPost('/api/save-image', { image: dataUrl, name: name, mime: mime })
+      .then(function (r) {
+        addDownload({ name: name, path: r.path || '已保存', thumb: '', time: Date.now(), source: '秒变线稿' });
+        toast('已保存：' + (r.path || ''));
+        if (Native.toast) Native.toast('已保存：' + name);
+      })
+      .catch(function (e) { toast('保存失败：' + e.message); })
+      .then(function () { busy(false); });
+  }
+  function onMbMessage(e) {
+    var d = e.data;
+    if (!d || typeof d !== 'object' || !d.__jusou) return;
+    if (d.__jusou === 'ready') {
+      state.mbReady = true;
+      if (state.mbPending) { postToMb(state.mbPending); state.mbPending = null; }
+    } else if (d.__jusou === 'save') { handleMbSave(d); }
+    else if (d.__jusou === 'toast') { toast(d.text); }
+  }
+  function miaobianFromViewer() {
+    var it = state.sorted[state.viewerIndex]; if (!it) return;
+    busy(true, '正在读取图片…');
+    imageToDataUrl(it.full || it.thumb, it.page || it.full).then(function (dataUrl) {
+      closeViewer();
+      sendToMiaobian(dataUrl, (it.title || '图片').slice(0, 40));
+      toast('已送入「秒变线稿」');
+    }).catch(function (e) { toast('读取图片失败：' + e.message); })
+      .then(function () { busy(false); });
+  }
+
   // ---------------------------------------------------------------- 下载记录
   function renderDownloads() {
     var list = $('#dlList'); list.innerHTML = '';
@@ -444,8 +509,8 @@
     $('#dlDirLabel').textContent = state.settings.dirLabel || '系统下载 / 聚搜图库';
     state.downloads.forEach(function (d) {
       var thumb = DEMO
-        ? (String(d.thumb).indexOf('data:') === 0 ? d.thumb : demoSvg(d.thumb))
-        : imgUrl(d.thumb, '');
+        ? (String(d.thumb || '').indexOf('data:') === 0 ? d.thumb : demoSvg(d.thumb || d.name))
+        : (d.thumb ? imgUrl(d.thumb, '') : demoSvg(d.name));
       var row = document.createElement('div'); row.className = 'dl-item';
       row.innerHTML = '<img src="' + esc(thumb) + '" alt="">'
         + '<div><b>' + esc(d.name) + '</b><small>' + esc(d.path) + ' · ' + fmtTime(d.time) + '</small></div>';
@@ -459,8 +524,8 @@
     $('#setDirLabel').textContent = s.dirLabel || '系统下载 / 聚搜图库';
     $('#dlDirLabel').textContent = s.dirLabel || '系统下载 / 聚搜图库';
     $('#setSubdir').value = s.subdir || '';
-    $('#setLimit').value = s.limit || 100;
-    $('#setLimitVal').textContent = s.limit || 100;
+    $('#setLimit').value = s.limit || 300;
+    $('#setLimitVal').textContent = s.limit || 300;
     $('#setSort').value = s.sort || 'score';
     $('#setSafe').checked = !!s.safe;
     state.sort = s.sort || 'score';
@@ -537,12 +602,14 @@
     $$('#tabbar button').forEach(function (b) { b.classList.toggle('active', b.dataset.tab === t); });
     $('#app').classList.toggle('hidden', t !== 'search');
     $('#pageStencil').classList.toggle('hidden', t !== 'stencil');
+    $('#pageMiaobian').classList.toggle('hidden', t !== 'miaobian');
     $('#pageDownloads').classList.toggle('hidden', t !== 'downloads');
     $('#pageSettings').classList.toggle('hidden', t !== 'settings');
     window.scrollTo(0, 0);
     $('.page:not(.hidden)') && ($('.page:not(.hidden)').scrollTop = 0);
     if (t === 'settings') loadSettings();
     if (t === 'downloads') renderDownloads();
+    if (t === 'miaobian') ensureMiaobian();
   }
   window.__onBack = function () {
     if (!$('#viewer').classList.contains('hidden')) { closeViewer(); return; }
@@ -563,17 +630,22 @@
     } else toast('目录设置失败');
   };
   window.__onNativeImage = function (m) {
+    var target = state.pendingTool || 'stencil';
+    state.pendingTool = '';
     if (m && m.ok && m.url) {
       busy(true, '正在读取所选图片…');
       blobToDataUrl(m.url).then(function (dataUrl) {
-        switchTab('stencil'); setStencilImage(dataUrl);
+        if (target === 'miaobian') sendToMiaobian(dataUrl, '相册图片');
+        else { switchTab('stencil'); setStencilImage(dataUrl); }
       }).catch(function (e) { toast('图片读取失败：' + e.message); })
         .then(function () { busy(false); });
       return;
     }
     busy(false);
-    if (m && m.ok && m.image) { switchTab('stencil'); setStencilImage(m.image); }
-    else toast('图片读取失败：' + ((m && m.error) || '未知错误'));
+    if (m && m.ok && m.image) {
+      if (target === 'miaobian') sendToMiaobian(m.image, '相册图片');
+      else { switchTab('stencil'); setStencilImage(m.image); }
+    } else toast('图片读取失败：' + ((m && m.error) || '未知错误'));
   };
 
   // ---------------------------------------------------------------- 事件绑定
@@ -621,12 +693,27 @@
       b.addEventListener('click', function () { switchTab(b.dataset.tab); });
     });
 
+    // 双线稿工具切换器（两个页面顶部各一份）
+    $$('.tool-switch button').forEach(function (b) {
+      b.addEventListener('click', function () { switchTab(b.dataset.tool); });
+    });
+    $('#btnMbPick').addEventListener('click', function () {
+      if (DEMO) { sendToMiaobian(demoSvg('mb-' + Date.now()), '示例图片'); }
+      else { state.pendingTool = 'miaobian'; native('pickImage'); }
+    });
+    $('#btnFromSearchMb').addEventListener('click', function () {
+      if (!state.items.length) { toast('请先在「搜图」里搜一批图片'); return; }
+      switchTab('search'); openViewer(0);
+      toast('点查看器里的「✎ 送秒变线稿」即可导入');
+    });
+
     // 查看器
     $('#btnViewerClose').addEventListener('click', closeViewer);
     $('#vPrev').addEventListener('click', function () { viewerStep(-1); });
     $('#vNext').addEventListener('click', function () { viewerStep(1); });
     $('#btnVDownload').addEventListener('click', downloadCurrent);
     $('#btnVStencil').addEventListener('click', stencilFromViewer);
+    $('#btnVMiaobian').addEventListener('click', miaobianFromViewer);
     $('#btnVOpen').addEventListener('click', function () {
       var it = state.sorted[state.viewerIndex];
       if (it && it.page) native('openExternal', it.page); else toast('该图片没有来源页面');
@@ -647,12 +734,12 @@
     // 线稿
     $('#btnPick').addEventListener('click', function () {
       if (DEMO) { setStencilImage(demoSvg('pick-' + Date.now())); toast('演示模式：已载入示例图'); }
-      else native('pickImage');
+      else { state.pendingTool = 'stencil'; native('pickImage'); }
     });
     $('#btnFromSearch').addEventListener('click', function () {
       if (!state.items.length) { toast('请先在「搜图」里搜一批图片'); return; }
       switchTab('search'); openViewer(0);
-      toast('点查看器里的「✒ 转线稿」即可导入');
+      toast('点查看器里的「✒ 送纹身线稿」或「✎ 送秒变线稿」即可导入');
     });
     $$('#stModes button').forEach(function (b) {
       b.addEventListener('click', function () {
@@ -720,6 +807,7 @@
 
   // ---------------------------------------------------------------- 启动
   function init() {
+    window.addEventListener('message', onMbMessage);
     bind();
     apiGet('/api/sources').then(function (r) {
       state.sources = r.sources || [];

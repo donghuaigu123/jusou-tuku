@@ -156,6 +156,7 @@ public final class LocalServer {
             if (path.equals("/") || path.equals("/index.html")) {
                 asset(out, "index.html"); return;
             }
+            if (path.equals("/miaobian.html")) { asset(out, "miaobian.html"); return; }
             if (path.startsWith("/assets/") || path.endsWith(".css") || path.endsWith(".js")
                     || path.endsWith(".svg") || path.endsWith(".png") || path.endsWith(".ico")) {
                 String name = path.startsWith("/assets/") ? path.substring(8) : path.substring(1);
@@ -172,7 +173,7 @@ public final class LocalServer {
             if (path.equals("/api/app")) {
                 Map<String, Object> m = ok();
                 m.put("name", "聚搜图库");
-                m.put("version", "1.0.0");
+                m.put("version", "2.0.0");
                 m.put("port", port);
                 m.put("maxResults", SearchEngine.MAX_RESULTS);
                 json(out, 200, m); return;
