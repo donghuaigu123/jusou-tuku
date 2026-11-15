@@ -1,0 +1,252 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<meta name="theme-color" content="#0E1016">
+<title>聚搜图库 · 多源图片聚合搜索</title>
+<link rel="stylesheet" href="/app.css">
+</head>
+<body>
+
+<div id="app">
+  <header class="topbar">
+    <div class="brand">
+      <div class="logo"><span></span></div>
+      <div class="brand-text"><h1>聚搜图库</h1><p>多源聚合 · 智能排序 · 一键下载</p></div>
+    </div>
+    <button id="btnTopSettings" class="icon-btn" aria-label="设置">⚙</button>
+  </header>
+
+  <section class="searchbar">
+    <div class="input-wrap">
+      <span class="search-ico">⌕</span>
+      <input id="q" type="search" enterkeyhint="search" autocomplete="off"
+             placeholder="描述你想要的图片，例如：纹身线稿 玫瑰">
+      <button id="btnClear" class="clear" aria-label="清空">×</button>
+    </div>
+    <button id="btnSearch" class="btn-primary">搜索</button>
+  </section>
+
+  <div class="hotwords" id="hotWords"></div>
+
+  <div class="filter-row">
+    <div class="sort-tabs" id="sortTabs">
+      <button data-sort="score" class="active">综合推荐</button>
+      <button data-sort="popularity">热门优先</button>
+      <button data-sort="relevance">最贴题</button>
+    </div>
+    <button id="btnSources" class="btn-ghost">图源 <b id="srcCount">0</b></button>
+  </div>
+
+  <div id="status" class="status hidden"></div>
+
+  <main id="grid" class="grid"></main>
+
+  <div id="loading" class="loading hidden">
+    <div class="spinner"></div><p>正在从各大搜索引擎与图库聚合图片…</p>
+    <p class="sub">并发请求 · 去重 · 按相关度与热度排序</p>
+  </div>
+
+  <div id="empty" class="empty">
+    <div class="empty-art">🖼️</div>
+    <h2>输入内容，开始聚合搜图</h2>
+    <p>一次搜索同时检索必应、搜狗、360、百度、Openverse 等 13 个来源，<br>最多聚合 100 张，按「热门 + 贴题」排序展示。</p>
+  </div>
+
+</div>
+
+<!-- 导航栏放在 #app 之外：切换子页面时 #app 整体隐藏，导航仍保持可见 -->
+<nav class="tabbar" id="tabbar">
+  <button data-tab="search" class="active"><i>⌕</i><span>搜图</span></button>
+  <button data-tab="stencil"><i>✒</i><span>线稿</span></button>
+  <button data-tab="downloads"><i>↓</i><span>下载</span></button>
+  <button data-tab="settings"><i>⚙</i><span>设置</span></button>
+</nav>
+
+<!-- ============ 线稿工作台（复刻「纹身线稿大师」） ============ -->
+<section id="pageStencil" class="page hidden">
+  <div class="page-head"><h2>纹身线稿工作台</h2><p>图片一键转「纯白底 + 纯黑线」转印底稿 · 本机离线处理</p></div>
+
+  <div class="stencil-stage" id="stStage">
+    <div class="stage-inner" id="stStageInner">
+      <img id="stOriginal" alt="原图">
+      <img id="stResult" class="hidden" alt="线稿">
+      <div id="stCompare" class="compare hidden">
+        <img id="stCompareA" alt="原图对比">
+        <img id="stCompareB" alt="线稿对比">
+        <div class="compare-line" id="stCompareLine"><span>⇆</span></div>
+      </div>
+      <div class="stage-placeholder" id="stPlaceholder">
+        <div class="ph-icon">✒</div>
+        <h3>选择一张图片开始</h3>
+        <p>可用相册图片，或把搜到的图片「一键转线稿」</p>
+      </div>
+    </div>
+    <div class="stage-badge hidden" id="stBadge">原图</div>
+  </div>
+
+  <div class="view-modes" id="stModes">
+    <button data-mode="original">原图</button>
+    <button data-mode="result" class="active">线稿</button>
+    <button data-mode="compare">对比</button>
+  </div>
+
+  <div class="stencil-actions">
+    <button id="btnPick" class="btn-primary">选择图片</button>
+    <button id="btnFromSearch" class="btn-ghost">从搜索结果选</button>
+  </div>
+
+  <div class="panel">
+    <div class="panel-title">高级设置 <span id="stAdvToggle">收起 ▴</span></div>
+    <div id="stAdv" class="panel-body">
+      <div class="field">
+        <label>线条预设</label>
+        <div class="seg" id="stPreset">
+          <button data-v="0">细线</button><button data-v="1" class="active">标准</button><button data-v="2">浓线</button>
+        </div>
+      </div>
+      <div class="field">
+        <label>线条强度 <b id="stStrengthVal">50</b></label>
+        <input type="range" id="stStrength" min="0" max="100" value="50">
+        <small>决定整体线条显现多少</small>
+      </div>
+      <div class="field">
+        <label>细节保留 <b id="stDetailVal">50</b></label>
+        <input type="range" id="stDetail" min="0" max="100" value="50">
+        <small>控制胡须、睫毛、斑点等细小笔画是否保留；0 极简，100 极精细</small>
+      </div>
+      <div class="field row">
+        <label>深色背景净化</label>
+        <label class="switch"><input type="checkbox" id="stClean" checked><span></span></label>
+      </div>
+      <button id="btnRegen" class="btn-outline">重新生成线稿</button>
+    </div>
+  </div>
+
+  <div class="stencil-actions bottom">
+    <button id="btnSaveStencil" class="btn-primary">保存 PNG</button>
+    <button id="btnShareStencil" class="btn-ghost">分享</button>
+  </div>
+  <div id="stStatus" class="hint">算法移植自开源项目「纹身线稿大师」，全部计算在本机完成，不上传图片。</div>
+</section>
+
+<!-- ============ 下载记录 ============ -->
+<section id="pageDownloads" class="page hidden">
+  <div class="page-head"><h2>下载记录</h2><p>保存位置由「设置 → 下载目录」决定</p></div>
+  <div class="dir-card"><span>当前目录</span><b id="dlDirLabel">系统下载 / 聚搜图库</b></div>
+  <div id="dlList" class="dl-list"></div>
+  <div id="dlEmpty" class="empty small"><div class="empty-art">↓</div><h3>还没有下载记录</h3><p>在查看器里点「下载图片」即可保存</p></div>
+  <button id="btnClearDl" class="btn-outline wide">清空记录</button>
+</section>
+
+<!-- ============ 设置 ============ -->
+<section id="pageSettings" class="page hidden">
+  <div class="page-head"><h2>设置</h2><p>下载目录、图源与排序偏好</p></div>
+
+  <div class="panel">
+    <div class="panel-title">下载目录</div>
+    <div class="panel-body">
+      <div class="dir-card"><span>当前保存位置</span><b id="setDirLabel">系统下载 / 聚搜图库</b></div>
+      <div class="stencil-actions">
+        <button id="btnChooseDir" class="btn-primary">选择自定义目录</button>
+        <button id="btnResetDir" class="btn-ghost">恢复默认</button>
+      </div>
+      <div class="field">
+        <label>子文件夹名称（自定义目录内）</label>
+        <input type="text" id="setSubdir" placeholder="聚搜图库">
+        <small>留空表示直接保存到所选目录</small>
+      </div>
+    </div>
+  </div>
+
+  <div class="panel">
+    <div class="panel-title">搜索偏好</div>
+    <div class="panel-body">
+      <div class="field">
+        <label>最多展示图片 <b id="setLimitVal">100</b> 张</label>
+        <input type="range" id="setLimit" min="10" max="100" step="10" value="100">
+      </div>
+      <div class="field">
+        <label>默认排序</label>
+        <select id="setSort">
+          <option value="score">综合推荐</option>
+          <option value="popularity">热门优先</option>
+          <option value="relevance">最贴题</option>
+        </select>
+      </div>
+      <div class="field row">
+        <label>安全搜索（过滤成人内容）</label>
+        <label class="switch"><input type="checkbox" id="setSafe" checked><span></span></label>
+      </div>
+      <div class="field row">
+        <label>图片来源 <b id="setSrcCount">0</b> 个</label>
+        <button id="btnSources2" class="btn-ghost small">配置 →</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="panel">
+    <div class="panel-title">商业图库 API Key <span class="optional">可选</span></div>
+    <div class="panel-body">
+      <p class="note">填入后自动启用对应图库。Pixabay 会返回浏览量/下载数，热门排序更准确。Key 只保存在本机。</p>
+      <div class="field"><label>Pixabay API Key</label><input type="password" id="keyPixabay" placeholder="留空表示不修改"></div>
+      <div class="field"><label>Pexels API Key</label><input type="password" id="keyPexels" placeholder="留空表示不修改"></div>
+      <div class="field"><label>Unsplash Access Key</label><input type="password" id="keyUnsplash" placeholder="留空表示不修改"></div>
+      <button id="btnSaveSettings" class="btn-primary wide">保存设置</button>
+    </div>
+  </div>
+
+  <div class="panel">
+    <div class="panel-title">关于</div>
+    <div class="panel-body">
+      <div class="about-row"><span>版本</span><b>1.0.0</b></div>
+      <div class="about-row"><span>开源协议</span><b>MIT</b></div>
+      <div class="about-row"><span>线稿算法</span><b>纹身线稿大师 (MIT)</b></div>
+      <p class="note">聚合结果来自第三方公开搜索服务，版权归原作者所有。请遵守各站点的使用条款与授权要求，勿用于商业侵权用途。</p>
+      <button id="btnClearCache" class="btn-outline wide">清除图片缓存</button>
+    </div>
+  </div>
+</section>
+
+<!-- ============ 图源选择抽屉 ============ -->
+<div id="sheetMask" class="sheet-mask hidden"></div>
+<div id="sheetSources" class="sheet hidden">
+  <div class="sheet-handle"></div>
+  <div class="sheet-head"><h3>选择图片来源</h3><button id="btnCloseSheet" class="icon-btn">×</button></div>
+  <p class="sheet-note">并发检索，单个来源失败不影响其它来源。标记「Key」的来源需在设置里填写 API Key。</p>
+  <div class="sheet-quick"><button id="btnAllSources">全选可用</button><button id="btnDefaultSources">恢复默认</button></div>
+  <div id="sourceList" class="source-list"></div>
+  <button id="btnApplySources" class="btn-primary wide">应用</button>
+</div>
+
+<!-- ============ 大图查看器 ============ -->
+<div id="viewer" class="viewer hidden">
+  <div class="viewer-top">
+    <button id="btnViewerClose" class="icon-btn">×</button>
+    <div class="viewer-count"><b id="vIndex">1</b> / <span id="vTotal">0</span></div>
+    <button id="btnViewerMore" class="icon-btn">⋯</button>
+  </div>
+  <div class="viewer-body" id="vBody"><img id="vImage" alt="大图"></div>
+  <button id="vPrev" class="nav-arrow prev">‹</button>
+  <button id="vNext" class="nav-arrow next">›</button>
+  <div class="viewer-info">
+    <h3 id="vTitle">—</h3>
+    <div class="v-meta"><span id="vSource" class="tag">—</span><span id="vSize"></span><span id="vLicense"></span></div>
+    <div class="score-row">
+      <span>贴题 <b id="vRel">–</b></span><span>热门 <b id="vHot">–</b></span><span>综合 <b id="vScore">–</b></span>
+    </div>
+    <div class="viewer-actions">
+      <button id="btnVDownload" class="btn-primary">↓ 下载图片</button>
+      <button id="btnVStencil" class="btn-ghost">✒ 转线稿</button>
+      <button id="btnVOpen" class="btn-ghost">↗ 来源</button>
+    </div>
+  </div>
+</div>
+
+<div id="toast" class="toast"></div>
+<div id="busy" class="busy hidden"><div class="spinner"></div><span id="busyText">处理中…</span></div>
+
+<script src="/app.js"></script>
+</body>
+</html>

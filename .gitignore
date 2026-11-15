@@ -1,0 +1,16 @@
+# 构建中间产物
+build/
+.keystore/
+*.jks
+*.keystore
+
+# Python / 编辑器
+__pycache__/
+*.pyc
+.DS_Store
+.idea/
+*.iml
+
+# 本地临时文件
+*.log
+tmp/
