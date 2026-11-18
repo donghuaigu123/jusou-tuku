@@ -24,24 +24,11 @@ SOFTWARE.
 
 Third-party component:
 
-app/src/main/java/com/donghuaigu/jusou/StencilProcessor.java
-  Ported from "纹身线稿大师 / tattoo-stencil-maker"
-  https://github.com/donghuaigu123/tattoo-stencil-maker
+app/src/main/java/com/donghuaigu/jusou/LineArtEngine.java
+  Ported from "线稿生成 / LineArt Generator"
+  https://github.com/donghuaigu123/LineArt-Generator
   Copyright (c) 2026 donghuaigu123, MIT License.
-
-app/src/main/assets/miaobian.html
-  Adapted from "秒变线稿 / tattoo-stencil-studio"
-  https://github.com/donghuaigu123/tattoo-stencil-studio
-  Copyright (c) 2026 秒变线稿 contributors, MIT License.
-  The original single-file application is kept intact; only a small
-  host adapter layer (save bridge + image push) is injected at its
-  head and tail. It also embeds UTIF.js and pako, both MIT licensed.
-
-app/src/main/java/com/donghuaigu/jusou/LineArtCore.java
-app/src/main/java/com/donghuaigu/jusou/ColorCard.java
-  Ported from "图转线稿 / TuZhuanXianGao"
-  https://github.com/donghuaigu123/tuzhuanxiangao
-  Copyright (c) 2026 donghuaigu123, MIT License.
-  The upstream project draws design ideas from
-  luckycucu/image-to-line-drawing (Apache-2.0) and userElaina/color-card;
-  no source code from those two projects was copied here.
+  Pure-Java line-art engine (Canny / XDoG / adaptive-threshold modes,
+  morphological closing and connected-component denoise). The algorithm
+  logic is kept intact; only the package name was changed to integrate
+  it into "聚搜图库". No OpenCV, NDK, or third-party library is used.

@@ -156,7 +156,6 @@ public final class LocalServer {
             if (path.equals("/") || path.equals("/index.html")) {
                 asset(out, "index.html"); return;
             }
-            if (path.equals("/miaobian.html")) { asset(out, "miaobian.html"); return; }
             if (path.startsWith("/assets/") || path.endsWith(".css") || path.endsWith(".js")
                     || path.endsWith(".svg") || path.endsWith(".png") || path.endsWith(".ico")) {
                 String name = path.startsWith("/assets/") ? path.substring(8) : path.substring(1);
@@ -173,7 +172,7 @@ public final class LocalServer {
             if (path.equals("/api/app")) {
                 Map<String, Object> m = ok();
                 m.put("name", "聚搜图库");
-                m.put("version", "3.0.0");
+                m.put("version", "4.0.0");
                 m.put("port", port);
                 m.put("maxResults", SearchEngine.MAX_RESULTS);
                 json(out, 200, m); return;
@@ -217,27 +216,20 @@ public final class LocalServer {
                 json(out, 200, r);
                 return;
             }
-            if (path.equals("/api/stencil") && "POST".equals(method)) {
-                Map<String, Object> m = Json.obj(Json.parse(new String(body, "UTF-8")));
-                String image = StencilBridge.process(Json.str(m.get("image")),
-                        Json.integer(m.get("preset"), 1), Json.integer(m.get("strength"), 50),
-                        Json.integer(m.get("detail"), 50),
-                        m.get("cleanBackground") == null || Boolean.TRUE.equals(m.get("cleanBackground")));
-                Map<String, Object> r = ok();
-                r.put("image", image);
-                json(out, 200, r);
-                return;
-            }
-            if (path.equals("/api/lineart") && "POST".equals(method)) {
+            if (path.equals("/api/lineartgen") && "POST".equals(method)) {
                 Map<String, Object> m = Json.obj(Json.parse(new String(body, "UTF-8")));
                 try {
                     Map<String, Object> r = ok();
-                    r.putAll(LineArtBridge.process(Json.str(m.get("image")),
-                            Json.integer(m.get("mode"), 0), Json.integer(m.get("sensitivity"), 50),
-                            Json.integer(m.get("density"), 50), Json.integer(m.get("lineWidth"), 1),
-                            m.get("pureBW") == null || Boolean.TRUE.equals(m.get("pureBW")),
-                            Boolean.TRUE.equals(m.get("mirror")), Boolean.TRUE.equals(m.get("invert")),
-                            m.get("enhance") == null || Boolean.TRUE.equals(m.get("enhance"))));
+                    r.putAll(LineArtGenBridge.process(
+                            Json.str(m.get("image")),
+                            Json.integer(m.get("mode"), 1),
+                            Json.integer(m.get("detail"), 55),
+                            Json.integer(m.get("thickness"), 1),
+                            Json.integer(m.get("ink"), 50),
+                            Json.integer(m.get("clean"), 50),
+                            Boolean.TRUE.equals(m.get("invert")),
+                            Boolean.TRUE.equals(m.get("darkBgSuppression")),
+                            Json.obj(m.get("crop"))));
                     json(out, 200, r);
                 } catch (Exception e) {
                     json(out, 200, err(e.getMessage() == null ? "线稿生成失败" : e.getMessage()));
