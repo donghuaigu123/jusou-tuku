@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-"""把 App 内 assets 打包成一个可在浏览器直接打开的单文件演示页（v4.0）。
+"""把 App 内 assets 打包成一个可在浏览器直接打开的单文件演示页（v4.0.1）。
 
 演示页注入 JUSOU_DEMO，使用模拟数据；线稿生成的 5 模式演示算法已内联在
 app.js 中，无需额外资源。用法：python3 scripts/make-preview.py [输出路径]
@@ -38,7 +38,7 @@ body{padding-top:26px}
 html = html.replace("</head>", banner_css + "</head>")
 
 demo = (
-    '<div class="demo-banner">浏览器演示 v4.0 · 模拟数据 · 300 张 / 13 图源 / 线稿生成</div>\n'
+    '<div class="demo-banner">浏览器演示 v4.0.1 · 模拟数据 · 300 张 / 13 图源 / 线稿生成</div>\n'
     "<script>window.JUSOU_DEMO = true;</script>\n"
     "<script>\n" + js + "\n</script>\n"
     "<script>\n"

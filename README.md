@@ -2,7 +2,7 @@
 
 一款 Android 图片聚合搜索与下载工具：输入一句话描述想要的图片，自动并发检索多个搜索引擎与图库，把结果**去重后按「热门程度 + 贴近搜索词的程度」聚合排序**，最多展示 **300 张**；支持大图查看、自定义下载目录，并**完整内置「线稿生成」**——一键把照片转成纹身级线描底稿（纯白底色 · 同尺寸对比 · 裁剪选区 · 完全离线）。
 
-- **APK 约 117 KB**（v4.0.0），纯 Android framework API，无 AndroidX、无第三方 SDK、无广告、无后台上传。
+- **APK 约 117 KB**（v4.0.1），纯 Android framework API，无 AndroidX、无第三方 SDK、无广告、无后台上传。
 - 线稿生成全部在本机计算，图片不会上传到任何服务器。
 - 开源协议：MIT。
 
@@ -10,11 +10,13 @@
 | :---: | :---: | :---: | :---: | :---: |
 | ![聚合搜索](docs/screenshot-search.png) | ![大图查看](docs/screenshot-viewer.png) | ![线稿生成](docs/screenshot-lineart.png) | ![裁剪选区](docs/screenshot-crop.png) | ![参数设置](docs/screenshot-lineart-controls.png) |
 
+> 滚动设置时预览常驻效果见 [`docs/screenshot-lineart-sticky.png`](docs/screenshot-lineart-sticky.png)。
+
 > 想先在电脑上看界面？打开仓库根目录的 [`preview.html`](preview.html)（单文件、模拟数据、线稿生成全功能可交互）。生成方式见「自行构建」。
 
 ---
 
-## v4.0.0 更新
+## v4.0.1 更新
 
 | 变更 | 说明 |
 | --- | --- |
@@ -22,10 +24,12 @@
 | **UI 与配色全面美化** | 统一为深空蓝底 + 蓝紫渐变强调色，重做顶栏、导航、卡片、面板、滑杆、步骤指示器与对比控件；线稿工具页与搜索页风格完全一致。 |
 | 单工具清爽入口 | 底部导航 4 项（搜图 / 线稿生成 / 下载 / 设置），查看器保留「✎ 送入线稿生成」一键送图。 |
 | 滚动位置保持（延续 v3 修复） | 从搜索结果点图、传入线稿工具再返回，精确回到原位置；返回键与底部导航两条路径都生效。 |
-| 版本号 | `versionCode 4` / `versionName 4.0.0`，签名与 v1/v2/v3 一致，可直接覆盖升级。 |
+| **滚动设置时预览常驻** | 线稿页向下滚动调节参数时，预览图自动缩为 120×120 吸顶缩略图并始终保持可见；回到顶部恢复大图，吸顶状态下「原图/线稿/对比」与拖动分割线仍可正常使用。 |
+| 版本号 | `versionCode 5` / `versionName 4.0.1`，签名与 v1/v2/v3/v4 一致，可直接覆盖升级。 |
 
 ### 历史版本
 
+- **v4.0.0**：移除三套旧线稿工具，完整复刻「线稿生成」；统一 UI 与深空蓝/蓝紫配色。
 - **v3.0.0**：修复滚动位置丢失；新增「图转线稿」复刻，形成三工具切换。
 - **v2.0.0**：展示上限 100 → 300（每源抓取量动态化）；新增「秒变线稿」复刻。
 - **v1.0.0**：首个版本，多源聚合搜索 + 「纹身线稿大师」复刻。
@@ -98,7 +102,7 @@
 
 ## 安装
 
-1. 从 [Releases](https://github.com/donghuaigu123/jusou-tuku/releases) 下载 `jusou-tuku-v4.0.0.apk`（或直接用仓库 `apk/` 目录里的文件）。
+1. 从 [Releases](https://github.com/donghuaigu123/jusou-tuku/releases) 下载 `jusou-tuku-v4.0.1.apk`（或直接用仓库 `apk/` 目录里的文件）。
 2. 在 Android 手机上点击安装；系统提示「未知来源」时允许即可。已装 v1～v3 的用户可直接覆盖升级（签名一致）。
 3. 要求 **Android 7.0（API 24）及以上**。安装后首次打开无需登录。
 
@@ -168,7 +172,7 @@ MainActivity (WebView)
 ```bash
 export ANDROID_SDK_ROOT=/path/to/android-sdk
 bash scripts/build-apk.sh
-# 产物：apk/jusou-tuku-v4.0.0.apk
+# 产物：apk/jusou-tuku-v4.0.1.apk
 ```
 
 脚本依次完成 `aapt2 compile/link（含 assets）→ javac → d8 → 打包 dex → zipalign → apksigner`。签名密钥生成在 `.keystore/` 并复用，因此重复构建可覆盖升级（该目录不入库）。

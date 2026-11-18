@@ -172,7 +172,7 @@ public final class LocalServer {
             if (path.equals("/api/app")) {
                 Map<String, Object> m = ok();
                 m.put("name", "聚搜图库");
-                m.put("version", "4.0.0");
+                m.put("version", "4.0.1");
                 m.put("port", port);
                 m.put("maxResults", SearchEngine.MAX_RESULTS);
                 json(out, 200, m); return;

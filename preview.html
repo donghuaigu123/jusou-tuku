@@ -7,7 +7,7 @@
 <title>聚搜图库 · 多源图片聚合搜索</title>
 <style>
 /* ============================================================
- * 聚搜图库 v4.0 · 统一视觉体系
+ * 聚搜图库 v4.0.1 · 统一视觉体系
  * 配色：深空蓝底 + 蓝紫渐变强调，搜索与工具页风格统一
  * ============================================================ */
 :root{
@@ -189,12 +189,19 @@ input[type=range]::-webkit-slider-thumb{appearance:none;width:19px;height:19px;b
 .step-line{width:44px;height:1px;background:var(--line);margin:0 6px;align-self:flex-start;margin-top:13px}
 
 /* ---------- 线稿预览舞台 ---------- */
-.la-stage{position:relative;background:
+.la-stage{position:sticky;top:-8px;z-index:15;background:
     linear-gradient(45deg,rgba(255,255,255,.035) 25%,transparent 25%,transparent 75%,rgba(255,255,255,.035) 75%),
     linear-gradient(45deg,rgba(255,255,255,.035) 25%,transparent 25%,transparent 75%,rgba(255,255,255,.035) 75%),
     var(--surface);
     background-position:0 0,10px 10px;background-size:20px 20px;
-    border:1px solid var(--line);border-radius:18px;overflow:hidden;aspect-ratio:1/1;max-height:46vh;margin:0 auto 12px}
+    border:1px solid var(--line);border-radius:18px;overflow:hidden;aspect-ratio:1/1;max-height:46vh;margin:0 auto 12px;
+    transition:width .28s ease,height .28s ease,max-height .28s ease,margin .28s ease,border-radius .28s ease,box-shadow .28s ease}
+/* 向下滚动设置时：预览缩为吸顶缩略图，始终可见 */
+.la-stage.la-compact{width:120px;height:120px;max-height:none;aspect-ratio:1/1;
+    margin:0 auto 8px;border-radius:15px;box-shadow:0 10px 28px rgba(0,0,0,.55)}
+.la-stage.la-compact .stage-hint{display:none}
+.la-stage.la-compact .stage-placeholder h3,
+.la-stage.la-compact .stage-placeholder p{display:none}
 .stage-inner{position:absolute;inset:0;display:grid;place-items:center;overflow:hidden}
 .stage-inner>img{width:100%;height:100%;object-fit:contain}
 .stage-placeholder{text-align:center;color:var(--muted);padding:20px}
@@ -589,7 +596,7 @@ body{padding-top:26px}
   <div class="panel">
     <div class="panel-title">关于</div>
     <div class="panel-body">
-      <div class="about-row"><span>版本</span><b>4.0.0</b></div>
+      <div class="about-row"><span>版本</span><b>4.0.1</b></div>
       <div class="about-row"><span>开源协议</span><b>MIT</b></div>
       <div class="about-row"><span>内置线稿引擎</span><b>线稿生成 LineArt Generator (MIT)</b></div>
       <p class="note">聚合结果来自第三方公开搜索服务，版权归原作者所有。请遵守各站点的使用条款与授权要求，勿用于商业侵权用途。</p>
@@ -636,10 +643,10 @@ body{padding-top:26px}
 <div id="toast" class="toast"></div>
 <div id="busy" class="busy hidden"><div class="spinner"></div><span id="busyText">处理中…</span></div>
 
-<div class="demo-banner">浏览器演示 v4.0 · 模拟数据 · 300 张 / 13 图源 / 线稿生成</div>
+<div class="demo-banner">浏览器演示 v4.0.1 · 模拟数据 · 300 张 / 13 图源 / 线稿生成</div>
 <script>window.JUSOU_DEMO = true;</script>
 <script>
-/* 聚搜图库 · 前端逻辑 v4.0
+/* 聚搜图库 · 前端逻辑 v4.0.1
  * 页面与 /api 同源（App 内本地服务），浏览器预览时走 JUSOU_DEMO 演示数据。
  * 线稿生成功能复刻自开源项目「线稿生成 LineArt Generator」(MIT)。
  */
@@ -754,7 +761,7 @@ body{padding-top:26px}
       limit: 300, safe: true, sort: 'score', maxResults: 300,
       sources: SRC_KEYS, keys: { pixabay: false, pexels: false, unsplash: false }
     };
-    if (path.indexOf('/api/app') === 0) return { ok: true, name: '聚搜图库', version: '4.0.0', maxResults: 300 };
+    if (path.indexOf('/api/app') === 0) return { ok: true, name: '聚搜图库', version: '4.0.1', maxResults: 300 };
     if (path.indexOf('/api/search') === 0) {
       var m = /[?&]q=([^&]*)/.exec(path);
       var q = m ? decodeURIComponent(m[1].replace(/\+/g, ' ')) : '';
@@ -1150,6 +1157,7 @@ body{padding-top:26px}
     $('#laPlaceholder').classList.add('hidden');
     $('#btnLaCrop').disabled = false;
     updateSteps(2);
+    if (window.__syncLaSticky) window.__syncLaSticky();
     generateLineart();
   }
   function renderLineartStage() {
@@ -1372,6 +1380,27 @@ body{padding-top:26px}
     stage.addEventListener('mouseup', release);
   }
 
+  // 滚动设置时保持预览可见：有图后自动缩为吸顶缩略图，回到顶部恢复大图
+  function setupLaSticky() {
+    var page = $('#pageLineart'), stage = $('#laStage');
+    if (!page || !stage) return;
+    var compact = false;
+    function apply(v) {
+      if (compact === v) return;
+      compact = v; stage.classList.toggle('la-compact', v);
+    }
+    function sync() {
+      if (!state.lineart.image) { apply(false); return; }
+      // sticky 元素的 offsetTop 会随吸顶变化，改用其前方的步骤条计算阈值
+      var steps = $('#laSteps');
+      var threshold = steps ? (steps.offsetTop + steps.offsetHeight - 8) : 150;
+      if (!compact && page.scrollTop >= threshold) apply(true);
+      else if (compact && page.scrollTop < threshold - 44) apply(false);
+    }
+    page.addEventListener('scroll', sync, { passive: true });
+    window.__syncLaSticky = sync;
+  }
+
   // ---------------------------------------------------------------- 下载记录
   function renderDownloads() {
     var list = $('#dlList'); list.innerHTML = '';
@@ -1506,6 +1535,7 @@ body{padding-top:26px}
     if (t === 'settings') loadSettings();
     if (t === 'downloads') renderDownloads();
     restoreScroll(t);
+    if (t === 'lineart' && window.__syncLaSticky) window.__syncLaSticky();
   }
   window.__onBack = function () {
     if (!$('#cropLayer').classList.contains('hidden')) { closeCrop(); return; }
@@ -1637,6 +1667,7 @@ body{padding-top:26px}
       native('shareText', '我用「聚搜图库 · 线稿生成」把照片转成了纹身线描底稿');
     });
     setupCompareDrag();
+    setupLaSticky();
 
     // 查看器
     $('#btnViewerClose').addEventListener('click', closeViewer);

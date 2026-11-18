@@ -1,4 +1,4 @@
-/* 聚搜图库 · 前端逻辑 v4.0
+/* 聚搜图库 · 前端逻辑 v4.0.1
  * 页面与 /api 同源（App 内本地服务），浏览器预览时走 JUSOU_DEMO 演示数据。
  * 线稿生成功能复刻自开源项目「线稿生成 LineArt Generator」(MIT)。
  */
@@ -113,7 +113,7 @@
       limit: 300, safe: true, sort: 'score', maxResults: 300,
       sources: SRC_KEYS, keys: { pixabay: false, pexels: false, unsplash: false }
     };
-    if (path.indexOf('/api/app') === 0) return { ok: true, name: '聚搜图库', version: '4.0.0', maxResults: 300 };
+    if (path.indexOf('/api/app') === 0) return { ok: true, name: '聚搜图库', version: '4.0.1', maxResults: 300 };
     if (path.indexOf('/api/search') === 0) {
       var m = /[?&]q=([^&]*)/.exec(path);
       var q = m ? decodeURIComponent(m[1].replace(/\+/g, ' ')) : '';
@@ -509,6 +509,7 @@
     $('#laPlaceholder').classList.add('hidden');
     $('#btnLaCrop').disabled = false;
     updateSteps(2);
+    if (window.__syncLaSticky) window.__syncLaSticky();
     generateLineart();
   }
   function renderLineartStage() {
@@ -731,6 +732,27 @@
     stage.addEventListener('mouseup', release);
   }
 
+  // 滚动设置时保持预览可见：有图后自动缩为吸顶缩略图，回到顶部恢复大图
+  function setupLaSticky() {
+    var page = $('#pageLineart'), stage = $('#laStage');
+    if (!page || !stage) return;
+    var compact = false;
+    function apply(v) {
+      if (compact === v) return;
+      compact = v; stage.classList.toggle('la-compact', v);
+    }
+    function sync() {
+      if (!state.lineart.image) { apply(false); return; }
+      // sticky 元素的 offsetTop 会随吸顶变化，改用其前方的步骤条计算阈值
+      var steps = $('#laSteps');
+      var threshold = steps ? (steps.offsetTop + steps.offsetHeight - 8) : 150;
+      if (!compact && page.scrollTop >= threshold) apply(true);
+      else if (compact && page.scrollTop < threshold - 44) apply(false);
+    }
+    page.addEventListener('scroll', sync, { passive: true });
+    window.__syncLaSticky = sync;
+  }
+
   // ---------------------------------------------------------------- 下载记录
   function renderDownloads() {
     var list = $('#dlList'); list.innerHTML = '';
@@ -865,6 +887,7 @@
     if (t === 'settings') loadSettings();
     if (t === 'downloads') renderDownloads();
     restoreScroll(t);
+    if (t === 'lineart' && window.__syncLaSticky) window.__syncLaSticky();
   }
   window.__onBack = function () {
     if (!$('#cropLayer').classList.contains('hidden')) { closeCrop(); return; }
@@ -996,6 +1019,7 @@
       native('shareText', '我用「聚搜图库 · 线稿生成」把照片转成了纹身线描底稿');
     });
     setupCompareDrag();
+    setupLaSticky();
 
     // 查看器
     $('#btnViewerClose').addEventListener('click', closeViewer);

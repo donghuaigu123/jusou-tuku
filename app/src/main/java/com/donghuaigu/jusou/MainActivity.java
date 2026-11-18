@@ -254,6 +254,6 @@ public class MainActivity extends Activity {
         public void finishApp() { runOnUiThread(new Runnable() { public void run() { finish(); } }); }
 
         @JavascriptInterface
-        public String version() { return "4.0.0"; }
+        public String version() { return "4.0.1"; }
     }
 }
